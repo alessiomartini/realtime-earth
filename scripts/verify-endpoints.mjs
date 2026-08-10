@@ -47,15 +47,24 @@ const USER_AGENT =
  */
 const ENDPOINTS = [
   // --- Section 1: finance & markets ---
-  { id: 'binance-ws', kind: 'ws', expectedLane: 'A', url: 'wss://stream.binance.com:9443/stream?streams=btcusdt@aggTrade', note: 'aggTrade + bookTicker, tick-by-tick' },
-  // Candidates for when the main endpoint refuses: binance.vision is Binance's
-  // market-data-only host, and the REST ping exposes the refusal's status code
-  // (a 451 would mean the runner's location is blocked, not the endpoint).
-  { id: 'binance-ws-vision', kind: 'ws', expectedLane: 'A', url: 'wss://data-stream.binance.vision/stream?streams=btcusdt@aggTrade', note: 'market-data-only host' },
-  { id: 'binance-rest-ping', kind: 'rest', expectedLane: 'A', url: 'https://api.binance.com/api/v3/ping', note: 'diagnostic: reveals why the WS handshake fails' },
+  // VERIFIED: stream.binance.com refuses from a US runner with HTTP 451
+  // ("Service unavailable from a restricted location"). That is a statement
+  // about where the probe runs, not about the endpoint, so it is kept in the
+  // list — a visitor's browser elsewhere may well connect. The REST ping is
+  // what surfaces the 451 body, since a WebSocket handshake failure alone
+  // never explains itself.
+  { id: 'binance-ws', kind: 'ws', expectedLane: 'A', url: 'wss://stream.binance.com:9443/stream?streams=btcusdt@aggTrade', note: 'geo-restricted: 451 from US runners; may work from a visitor browser' },
+  { id: 'binance-rest-ping', kind: 'rest', expectedLane: 'A', url: 'https://api.binance.com/api/v3/ping', note: 'diagnostic: exposes the 451 body behind the WS handshake failure' },
+  // VERIFIED WORKING from the runner: the market-data-only host is not
+  // geo-restricted, so this is the endpoint the module should use.
+  { id: 'binance-ws-vision', kind: 'ws', expectedLane: 'A', url: 'wss://data-stream.binance.vision/stream?streams=btcusdt@aggTrade', note: 'market-data-only host; handshake accepted where the main host refused' },
   { id: 'coinbase-ws', kind: 'ws', expectedLane: 'A', url: 'wss://ws-feed.exchange.coinbase.com', note: 'matches channel, second venue for spread' },
-  { id: 'stooq-quote', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=spy.us&f=sd2t2ohlcv&h&e=csv', note: 'delayed / EOD equities CSV' },
-  { id: 'stooq-index', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=%5Espx&f=sd2t2ohlcv&h&e=csv', note: 'index variant, in case the .us symbol path is the problem' },
+  // Stooq introduced an API key around 2026-04-01, issued only by emailing
+  // www@stooq.com. Both keyless CSV paths now answer with an HTML 404 rather
+  // than a 401, which is why they read as "not found" instead of "gated".
+  // Until a key exists this source cannot be wired at all.
+  { id: 'stooq-quote', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=spy.us&f=sd2t2ohlcv&h&e=csv', note: 'key required since ~2026-04-01 (email www@stooq.com); keyless path 404s' },
+  { id: 'stooq-index', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=%5Espx&f=sd2t2ohlcv&h&e=csv', note: 'same key requirement' },
 
   // --- Section 2: logistics & infrastructure ---
   // ADS-B: the spec assumed adsb.lol / adsb.fi were the CORS-friendly ones.
@@ -74,15 +83,16 @@ const ENDPOINTS = [
   // --- Section 3: earth system & energy ---
   { id: 'carbonintensity-uk', kind: 'rest', expectedLane: 'A', url: 'https://api.carbonintensity.org.uk/intensity', note: 'keyless, CORS-open' },
   { id: 'carbonintensity-mix', kind: 'rest', expectedLane: 'A', url: 'https://api.carbonintensity.org.uk/generation', note: 'generation mix' },
-  // The 5-minute files 404'd on the first run. SWPC issued a 2026 service
-  // change affecting product formats, so the longer windows are probed as
-  // candidates rather than assuming which files still exist.
-  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'DSCOVR plasma' },
-  { id: 'swpc-plasma-2h', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json', note: 'DSCOVR plasma, 2h window' },
-  { id: 'swpc-plasma-1d', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json', note: 'DSCOVR plasma, 1d window' },
-  { id: 'swpc-mag-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json', note: 'DSCOVR magnetic field, Bz' },
-  { id: 'swpc-mag-2h', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-2-hour.json', note: 'DSCOVR Bz, 2h window' },
-  { id: 'swpc-mag-1d', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json', note: 'DSCOVR Bz, 1d window' },
+  // Every file under /products/solar-wind/ 404s — plasma and mag, at every
+  // window — while other SWPC paths (K-index, GOES X-ray) still return 200.
+  // SWPC stopped ingesting DSCOVR and moved to SOLAR-1 as the primary solar
+  // wind source in 2026, retiring the legacy products. Rather than guess the
+  // replacement filenames, these two entries read the source's own directory
+  // listings, so the next run reports what SWPC actually publishes today.
+  { id: 'swpc-index-solar-wind', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1400, url: 'https://services.swpc.noaa.gov/products/solar-wind/', note: 'DISCOVERY: list what still exists in this directory' },
+  { id: 'swpc-index-products', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1400, url: 'https://services.swpc.noaa.gov/products/', note: 'DISCOVERY: find where solar wind moved to' },
+  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'legacy DSCOVR plasma — 404 since the SOLAR-1 transition' },
+  { id: 'swpc-mag-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json', note: 'legacy DSCOVR Bz — 404 since the SOLAR-1 transition' },
   { id: 'swpc-kp', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', note: 'planetary K-index' },
   { id: 'swpc-xray', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', note: 'GOES X-ray flux' },
   { id: 'usgs-hour', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson', note: 'keyless, CORS-open' },
@@ -130,17 +140,22 @@ async function checkHttp(endpoint, attempt = 1) {
     const acao = response.headers.get('access-control-allow-origin');
     const corsOk = acao === '*' || acao === BROWSER_ORIGIN;
 
+    // Discovery endpoints (directory indexes) need a longer excerpt, because
+    // the point of probing them is to read what the source actually publishes
+    // instead of guessing filenames.
+    const sampleChars = endpoint.sampleChars ?? 120;
+
     let sample = '';
     if (endpoint.kind === 'sse') {
       // Read only the first chunk: an SSE endpoint never ends on its own.
       const reader = response.body?.getReader();
       if (reader) {
         const { value } = await reader.read();
-        sample = new TextDecoder().decode(value ?? new Uint8Array()).slice(0, 120).replace(/\s+/g, ' ');
+        sample = new TextDecoder().decode(value ?? new Uint8Array()).slice(0, sampleChars).replace(/\s+/g, ' ');
         await reader.cancel();
       }
     } else {
-      sample = (await response.text()).slice(0, 120).replace(/\s+/g, ' ');
+      sample = (await response.text()).slice(0, sampleChars).replace(/\s+/g, ' ');
     }
 
     return {
@@ -244,7 +259,14 @@ for (const endpoint of selected) {
   // the host is up and the gate is real. That is a successful probe, and it is
   // also the evidence that the source cannot be Lane A.
   const gated = Boolean(endpoint.needsKey) && ['400', '401', '403'].includes(outcome.status);
-  const reachable = outcome.ok || gated;
+
+  // A 429 is the source answering, in detail, that we asked too often. That is
+  // a live source with a documented cadence limit — recording it as an outage
+  // would be false, and would hide the fact that the fix is to poll slower
+  // (which is precisely why such a source belongs in Lane B behind a
+  // scheduled handler).
+  const throttled = outcome.status === '429';
+  const reachable = outcome.ok || gated || throttled;
 
   let laneEvidence;
   if (endpoint.kind === 'ws') {
@@ -256,12 +278,14 @@ for (const endpoint of selected) {
   results.push({
     reachable,
     gated,
+    throttled,
     id: endpoint.id,
     kind: endpoint.kind,
     url: endpoint.url,
     expectedLane: endpoint.expectedLane,
     laneEvidence,
     laneMismatch: laneEvidence !== '?' && laneEvidence !== endpoint.expectedLane,
+    discovery: Boolean(endpoint.discovery),
     note: endpoint.note,
     ...outcome,
   });
@@ -275,12 +299,14 @@ if (asJson) {
   console.log('-'.repeat(96));
   for (const r of results) {
     const lane = r.laneMismatch ? `${r.expectedLane}→${r.laneEvidence} !` : r.laneEvidence === '?' ? `${r.expectedLane} (?)` : r.expectedLane;
-    const status = r.gated ? `${r.status} gated` : r.status;
+    const status = r.gated ? `${r.status} gated` : r.throttled ? `${r.status} slow-down` : r.status;
     console.log(pad(r.id, 22) + pad(r.kind, 6) + pad(status, 12) + pad(r.cors, 26) + pad(lane, 12) + r.ms);
     // Print the body for anything that is not a plain success, so a gate's own
     // wording is visible — that is what distinguishes "needs a key" from
-    // "blocked by something between us and the source".
-    if (!r.reachable || r.laneMismatch || r.gated) console.log(`  ↳ ${r.sample}`);
+    // "rate limited" from "blocked by something between us and the source".
+    if (!r.reachable || r.laneMismatch || r.gated || r.throttled || r.discovery) {
+      console.log(`  ↳ ${r.sample}`);
+    }
   }
   console.log('-'.repeat(96));
   const failed = results.filter((r) => !r.reachable);
