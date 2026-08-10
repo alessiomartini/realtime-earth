@@ -84,10 +84,35 @@ npm run verify:endpoints -- usgs    # by id substring
 npm run verify:endpoints -- --json  # machine-readable
 ```
 
-It needs unrestricted outbound network access — run it from a normal machine or
-a CI runner, not from a sandbox with an egress allowlist. A failure is a
-finding, not a bug to code around: substitute the source, or show an honest
-error in the module.
+It needs unrestricted outbound network access, so it also runs as a GitHub
+Actions job (`.github/workflows/verify-endpoints.yml`) on push, weekly, and on
+demand. The job's log and its `endpoint-verification` artifact are the evidence
+of record. A failure is a finding, not a bug to code around: substitute the
+source, or show an honest error in the module.
+
+### Verified source status
+
+Last full run: 2026-08-10, 23 of 27 endpoints reachable. Four findings
+contradict the original design and change what gets built:
+
+| Source | Verified result | Consequence |
+| --- | --- | --- |
+| `stream.binance.com` | **451**, "Service unavailable from a restricted location" | Geo-restriction, not an outage. Use `wss://data-stream.binance.vision` (handshake accepted); the module must still show an honest error for visitors who are themselves blocked. |
+| `api.adsb.lol`, `opendata.adsb.fi` | 200, **no CORS header** | Cannot be Lane A, despite the design assuming they were the CORS-friendly ones. `api.airplanes.live` returns `*` and is the Lane A ADS-B source. |
+| `opensky-network.org` | 200, CORS restricted to its own origin | Lane B only. |
+| SWPC `/products/solar-wind/` | **Directory does not exist** | DSCOVR ingest stopped in favour of SOLAR-1. Replacements verified: `/json/rtsw/`, plus `/products/summary/solar-wind-{speed,mag-field}.json`. |
+| `stooq.com` CSV | 404 on every keyless path | Requires an API key since ~2026-04-01, issued only by emailing `www@stooq.com`. **Blocked** until that key exists. |
+| GDELT DOC 2.0 | 429, "one request every 5 seconds" | Live, with a documented cadence limit — exactly why it belongs in Lane B behind a `scheduled` handler. |
+| NASA FIRMS | 400, "Invalid MAP_KEY" | Gate is real and working; needs `FIRMS_MAP_KEY`. |
+
+Confirmed Lane A (keyless, CORS `*`): Coinbase, RIPE RIS Live, mempool.space,
+airplanes.live, Carbon Intensity (intensity + generation), SWPC K-index and GOES
+X-ray, USGS (hour + day), Wikimedia SSE, Ethereum public RPC. AIS Stream accepts
+the handshake, confirming Lane C.
+
+Note on where the probe runs: CI uses a US-based runner, so a geo-refusal there
+describes the runner's location, not necessarily a visitor's browser. Binance is
+the known case.
 
 ## Deployment
 
