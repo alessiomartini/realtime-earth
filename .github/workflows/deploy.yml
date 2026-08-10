@@ -88,6 +88,7 @@ jobs:
           [ "$ok" = 1 ]
 
       - name: Deploy Worker (static assets + routes)
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -96,3 +97,35 @@ jobs:
           # never present in the client bundle. They are added to this workflow
           # in step 4 (Lane B) and step 5 (Lane C), via the action's `secrets`
           # input plus matching repository secrets.
+
+      # A green deploy step means "wrangler uploaded it", not "the site works".
+      # This checks the deployed origin actually serves BOTH halves of the
+      # hosting model — static assets and a Worker route — from one host, which
+      # is the claim the whole architecture rests on.
+      - name: Smoke-test the deployed origin
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::error::The deploy step reported no URL, so there is nothing to verify. Refusing to report success."
+            exit 1
+          fi
+          echo "Testing $URL"
+          fail=0
+
+          # 1. The static bundle.
+          code=$(curl -sS -o /tmp/root.html -w '%{http_code}' --max-time 30 "$URL/")
+          if [ "$code" != "200" ]; then echo "::error::GET / returned $code"; fail=1; fi
+          grep -q "<div id=\"app\">" /tmp/root.html || { echo "::error::GET / did not return the app shell"; fail=1; }
+
+          # 2. The Worker route, on the same origin.
+          code=$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 30 "$URL/api/health")
+          if [ "$code" != "200" ]; then echo "::error::GET /api/health returned $code"; fail=1; fi
+          grep -q '"runtime": "cloudflare"' /tmp/health.json || { echo "::error::/api/health did not report the cloudflare runtime"; cat /tmp/health.json; fail=1; }
+
+          # 3. An unknown route is an honest 404, not an empty success.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/api/does-not-exist")
+          if [ "$code" != "404" ]; then echo "::error::GET /api/does-not-exist returned $code, expected 404"; fail=1; fi
+
+          if [ "$fail" = 0 ]; then echo "Deployed origin serves assets and Worker routes correctly."; fi
+          exit $fail
