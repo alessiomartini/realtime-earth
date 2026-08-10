@@ -100,10 +100,16 @@ const ENDPOINTS = [
   // directory is gone, along with the DSCOVR plasma and mag products the spec
   // asked for. The remaining question is what replaced them, so the search
   // continues one level down instead of guessing filenames.
-  { id: 'swpc-index-products', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/products/', note: 'DISCOVERY: full listing — solar-wind/ is absent from it' },
-  { id: 'swpc-index-summary', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/products/summary/', note: 'DISCOVERY: summary products, a likely home for wind speed and Bz' },
-  { id: 'swpc-index-json', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/json/', note: 'DISCOVERY: the other SWPC tree, where GOES X-ray already lives' },
-  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'RETIRED: directory no longer exists (DSCOVR ingest stopped)' },
+  // Reading the directories answered it: /products/ has no solar-wind/ entry
+  // at all, /products/summary/ carries single current values for wind speed
+  // and mag field, and /json/ has an rtsw/ tree — Real-Time Solar Wind, the
+  // replacement for the retired DSCOVR products. Probing all three, since the
+  // summary files are 60 bytes (one value each) while rtsw/ should hold the
+  // series the space-weather module actually needs.
+  { id: 'swpc-index-rtsw', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/json/rtsw/', note: 'DISCOVERY: real-time solar wind, successor to the DSCOVR products' },
+  { id: 'swpc-summary-wind-speed', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 300, url: 'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', note: 'current solar wind speed, single value' },
+  { id: 'swpc-summary-mag-field', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 300, url: 'https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json', note: 'current Bt/Bz, single value' },
+  { id: 'swpc-index-products', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/products/', note: 'DISCOVERY: full listing — confirms solar-wind/ is gone, not moved' },
   { id: 'swpc-kp', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', note: 'planetary K-index' },
   { id: 'swpc-xray', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', note: 'GOES X-ray flux' },
   { id: 'usgs-hour', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson', note: 'keyless, CORS-open' },
