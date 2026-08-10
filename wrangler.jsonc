@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "realtime-earth",
+  "main": "worker/index.ts",
+  // Pinned to the newest date the installed workerd supports; bump it together
+  // with the wrangler dependency, never ahead of it.
+  "compatibility_date": "2026-08-08",
+
+  // One Worker serves the whole site: static assets out of the Vite build, and
+  // the API / relay routes from the same origin. One deploy, no CORS between
+  // our own pieces, no keys in the client bundle.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    // Unmatched paths fall back to index.html so client-side views (e.g.
+    // /about) resolve. API and relay paths are excluded below.
+    "not_found_handling": "single-page-application",
+    // Everything else is served asset-first (cheaper, and not billed as a
+    // Worker request); only these prefixes always invoke the Worker.
+    "run_worker_first": ["/api/*", "/ws/*"]
+  },
+
+  "observability": {
+    "enabled": true
+  }
+
+  // Added in later steps, kept here as a map of what is coming:
+  //   "kv_namespaces"        - Lane B scheduled-handler storage (FIRMS, GDELT)
+  //   "triggers": { "crons" } - Lane B scheduled refresh
+  //   "durable_objects"       - Lane C AisRelay
+  //   "migrations"            - SQLite-backed DO class registration
+}

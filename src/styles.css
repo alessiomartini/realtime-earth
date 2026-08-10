@@ -1,0 +1,331 @@
+/*
+ * Instrument-panel styling: dark ground, dense type, monospace numerics.
+ * Motion is deliberately almost absent — under the founding principles, any
+ * animation on a value or a position would be inventing frames the source
+ * never sent. Transitions here are limited to non-data affordances (focus,
+ * hover on links), and even those are dropped under prefers-reduced-motion.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0c0f;
+  --bg-panel: #11151a;
+  --bg-inset: #0d1116;
+  --rule: #1e252d;
+  --rule-strong: #2b343e;
+
+  --fg: #d7dee6;
+  --fg-dim: #8b98a6;
+  --fg-faint: #5d6874;
+
+  --accent: #54d6a0; /* ok / live */
+  --accent-amber: #e0b341; /* stale / delayed */
+  --accent-red: #e0665c; /* error */
+  --accent-blue: #6fa8dc; /* snapshot / static */
+
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, sans-serif;
+
+  --gutter: clamp(1rem, 4vw, 3rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* --- shell ------------------------------------------------------------- */
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--gutter) 6rem;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.wordmark {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg);
+  margin: 0;
+}
+
+.wordmark span {
+  color: var(--fg-faint);
+}
+
+.topbar__meta {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg-faint);
+  letter-spacing: 0.06em;
+}
+
+/* --- thesis ------------------------------------------------------------ */
+
+.thesis {
+  padding: clamp(3rem, 9vw, 6rem) 0 clamp(2rem, 5vw, 3.5rem);
+  max-width: 46ch;
+}
+
+.thesis h1 {
+  font-size: clamp(1.9rem, 5.5vw, 3.1rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+  text-wrap: balance;
+}
+
+.thesis h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.thesis p {
+  color: var(--fg-dim);
+  margin: 0 0 1rem;
+  max-width: 58ch;
+}
+
+/* --- principles -------------------------------------------------------- */
+
+.principles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0;
+}
+
+.principle {
+  background: var(--bg-panel);
+  padding: 1.1rem 1.25rem 1.35rem;
+}
+
+.principle__n {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  color: var(--fg-faint);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.principle__t {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.principle__d {
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* --- panels ------------------------------------------------------------ */
+
+.panel {
+  border: 1px solid var(--rule);
+  background: var(--bg-panel);
+  margin: 2rem 0;
+}
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-inset);
+}
+
+.panel__title {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin: 0;
+}
+
+.panel__body {
+  padding: 1.1rem;
+}
+
+/* --- status strip (prototype of the module card strip) ----------------- */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  flex: none;
+}
+
+.dot--ok {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.dot--error {
+  background: var(--accent-red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-red) 18%, transparent);
+}
+
+.dot--connecting {
+  background: var(--accent-amber);
+}
+
+/* --- readouts ---------------------------------------------------------- */
+
+.readout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+
+.readout > div {
+  background: var(--bg-inset);
+  padding: 0.75rem 0.9rem;
+}
+
+.readout dt {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin: 0 0 0.3rem;
+}
+
+.readout dd {
+  font-family: var(--mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.readout dd.is-absent {
+  color: var(--fg-faint);
+}
+
+/* --- roadmap ----------------------------------------------------------- */
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--rule);
+  color: var(--fg-dim);
+}
+
+.steps li:last-child {
+  border-bottom: 0;
+}
+
+.steps .tag {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  padding-top: 0.15rem;
+}
+
+.steps .tag--done {
+  color: var(--accent);
+}
+
+.note {
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  border-left: 2px solid var(--rule-strong);
+  padding-left: 0.9rem;
+  margin: 1.25rem 0 0;
+}
+
+.footer {
+  border-top: 1px solid var(--rule);
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg-faint);
+  letter-spacing: 0.05em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
