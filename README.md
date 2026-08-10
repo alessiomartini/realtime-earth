@@ -4,10 +4,37 @@ A modular catalog of live global data feeds. The thesis: right now, humanity has
 an unprecedented amount of high-quality real-time data publicly available — this
 site shows a live sample of it, unmodified.
 
-**Status: step 1 of 7 (scaffold).** No data feeds are connected yet. The site
-currently renders the thesis, the founding principles, and a deployment probe
-that confirms one Worker is serving both the static bundle and its own API
-route from one origin.
+**Status: step 2 of 7 (catalog machinery).** No data feeds are connected yet,
+so the catalog renders an explicit empty state — which is the point: a scaffold
+that shipped demo cards to look finished would break the third founding
+principle on its first screen. What exists is the machinery every feed will
+use: the module contract, the registry, the card shell and status strip, and
+the lifecycle manager.
+
+## Adding a module
+
+One new file under `src/modules/`, and one import line in
+`src/modules/registry.ts`. Nothing else. Extend `BaseModule`, which supplies
+the counters, health, staleness watchdog and reconnect backoff, and implement
+three methods:
+
+```ts
+class MyModule extends BaseModule {
+  mount(el: HTMLElement) { /* render your chrome once */ }
+  protected openStream() { /* open the transport */ }
+  protected closeStream() { /* close it, fully */ }
+}
+register(new MyModule());
+```
+
+Inside the transport, call `this.markReceived(sourceTimestamp)` for each
+message actually received, and `this.fail(reason)` when it breaks. Pass `null`
+as the timestamp if the payload carries none — never `Date.now()`, which would
+present our own latency as the data's freshness.
+
+`staleAfterMs` should be about 3× the expected cadence. That is what turns a
+feed going quiet into a visible `stale` state instead of a stale value shown as
+current.
 
 ## Founding principles
 
@@ -65,6 +92,7 @@ npm install
 npm run dev               # Vite dev server (frontend only; /api/* does not exist here)
 npm run preview           # build + `wrangler dev` — the full stack on one origin
 npm run check             # typecheck client and worker
+npm test                  # unit tests for the core machinery
 npm run build             # Vite build into dist/client
 npm run audit:bundle      # fail if anything credential-shaped is in the build
 npm run verify:endpoints  # check every candidate source: status, CORS, lane
@@ -137,8 +165,23 @@ output.
 
 ```
 index.html                        page shell
-src/main.ts                       entry point (step 1: thesis + deploy probe)
+src/main.ts                       entry point: thesis, principles, catalog
 src/styles.css                    instrument-panel styling
+
+src/core/types.ts                 the module contract
+src/core/base-module.ts           counters, health, staleness, reconnect
+src/core/lifecycle.ts             who is allowed to be connected, and when
+src/core/ring-buffer.ts           fixed-capacity buffer — the hard memory bound
+src/core/backoff.ts               exponential backoff with full jitter
+src/core/core.test.ts             unit tests for the above
+
+src/modules/registry.ts           one import line per feed
+
+src/ui/card.ts                    card shell, collapse/expand, error display
+src/ui/status-strip.ts            transport, lane, latency, health, count, age
+src/ui/catalog.ts                 sections, filters, sort, global counter, pause
+src/ui/dom.ts                     element helper and duration formatting
+
 worker/index.ts                   the single Worker: assets + /api/* + /ws/*
 wrangler.jsonc                    Worker + assets configuration
 scripts/verify-endpoints.mjs      source verification gate
@@ -148,7 +191,7 @@ scripts/check-bundle-secrets.mjs  "no secrets in the bundle" acceptance check
 ## Order of work
 
 1. ✅ Scaffold: Vite + TS, one Worker serving assets and routes, CI deploy.
-2. Module contract, registry, card shell, status strip, lifecycle manager
+2. ✅ Module contract, registry, card shell, status strip, lifecycle manager
    (lazy connect, pause, backoff, staleness).
 3. Reference modules covering the direct transports: USGS (poll), Wikipedia
    (SSE), Binance (WebSocket).

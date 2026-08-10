@@ -1,14 +1,19 @@
 import './styles.css';
+import { LifecycleManager } from './core/lifecycle.js';
+import { createCatalog } from './ui/catalog.js';
+import { allModules } from './modules/registry.js';
+import { el } from './ui/dom.js';
 
 /**
- * Step 1 — scaffold only.
+ * Entry point.
  *
- * This page exists to prove one thing: that a single Cloudflare Worker serves
- * both the static bundle and a Worker route from one origin. The only live
- * value on it is the response from `/api/health`, which is a deployment probe,
- * not a data feed — it is labelled as such so it is never mistaken for one.
+ * Step 2 built the machinery: the module contract, the registry, the card
+ * shell and status strip, and the lifecycle manager that decides which feeds
+ * are allowed to be connected. No feeds are registered yet — step 3 adds the
+ * three reference modules — so the catalog renders an explicit empty state.
  *
- * The module contract, registry and catalog land in step 2.
+ * That empty state is the point. A scaffold that shipped demo cards to look
+ * finished would break the third founding principle on its very first screen.
  */
 
 const PRINCIPLES: ReadonlyArray<{ title: string; detail: string }> = [
@@ -34,186 +39,67 @@ const PRINCIPLES: ReadonlyArray<{ title: string; detail: string }> = [
   },
 ];
 
-const STEPS: ReadonlyArray<{ tag: string; done: boolean; text: string }> = [
-  { tag: 'Step 1', done: true, text: 'Scaffold: Vite + TypeScript, one Worker serving assets and routes, CI deploy.' },
-  { tag: 'Step 2', done: false, text: 'Module contract, registry, card shell, status strip, lifecycle manager.' },
-  { tag: 'Step 3', done: false, text: 'Reference modules: USGS (poll), Wikipedia (SSE), Binance (WebSocket).' },
-  { tag: 'Step 4', done: false, text: 'Lane B: Worker proxy route, scheduled handler, KV storage.' },
-  { tag: 'Step 5', done: false, text: 'Lane C: AIS Durable Object relay and its map module.' },
-  { tag: 'Step 6', done: false, text: 'Remaining modules, section by section.' },
-];
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  ...children: Array<Node | string>
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-  node.append(...children);
-  return node;
-}
-
-/** A readout cell. `value === null` renders as absent, never as a filled blank. */
-function cell(label: string, value: string | null): HTMLElement {
-  const dd = el('dd', value === null ? { class: 'is-absent' } : {}, value ?? 'not reported');
-  return el('div', {}, el('dt', {}, label), dd);
-}
-
-function render(): void {
-  const app = document.querySelector<HTMLDivElement>('#app');
-  if (!app) throw new Error('#app mount point is missing from index.html');
-
-  const health = el('div', { class: 'status', id: 'health' }, el('span', { class: 'dot dot--connecting' }), 'probing…');
-  const readout = el(
-    'dl',
-    { class: 'readout', id: 'health-readout' },
-    cell('worker time', null),
-    cell('runtime', null),
-    cell('colo', null),
-    cell('probe', null),
-  );
-
-  app.append(
+function renderShell(): HTMLElement {
+  return el(
+    'div',
+    { class: 'shell' },
     el(
-      'div',
-      { class: 'shell' },
+      'header',
+      { class: 'topbar' },
+      el('p', { class: 'wordmark' }, 'The Real-Time Earth'),
+      el('p', { class: 'topbar__meta' }, 'step 2 of 7 — catalog machinery, no feeds wired yet'),
+    ),
+    el(
+      'section',
+      { class: 'thesis' },
+      el('h1', {}, 'Right now, the planet is broadcasting. ', el('em', {}, 'Unmodified.')),
       el(
-        'header',
-        { class: 'topbar' },
-        el('p', { class: 'wordmark' }, 'The Real-Time Earth ', el('span', {}, '/ scaffold')),
-        el('p', { class: 'topbar__meta' }, 'step 1 of 7 — no feeds connected yet'),
+        'p',
+        {},
+        'Humanity has an unprecedented amount of high-quality real-time data publicly available. This site shows a live sample of it — exactly as received, from named and licensed sources.',
       ),
-
-      el(
-        'section',
-        { class: 'thesis' },
-        el('h1', {}, 'Right now, the planet is broadcasting. ', el('em', {}, 'Unmodified.')),
+    ),
+    el(
+      'section',
+      { class: 'principles' },
+      ...PRINCIPLES.map((p, i) =>
         el(
-          'p',
-          {},
-          'Humanity has an unprecedented amount of high-quality real-time data publicly available. This site will show a live sample of it — exactly as received, from named and licensed sources.',
+          'article',
+          { class: 'principle' },
+          el('span', { class: 'principle__n' }, String(i + 1).padStart(2, '0')),
+          el('h2', { class: 'principle__t' }, p.title),
+          el('p', { class: 'principle__d' }, p.detail),
         ),
-        el(
-          'p',
-          {},
-          'Nothing on this page is a data feed yet. The catalog is built in the steps below, and until a feed is wired to a verified endpoint it is not shown at all.',
-        ),
-      ),
-
-      el(
-        'section',
-        { class: 'principles' },
-        ...PRINCIPLES.map((p, i) =>
-          el(
-            'article',
-            { class: 'principle' },
-            el('span', { class: 'principle__n' }, String(i + 1).padStart(2, '0')),
-            el('h2', { class: 'principle__t' }, p.title),
-            el('p', { class: 'principle__d' }, p.detail),
-          ),
-        ),
-      ),
-
-      el(
-        'section',
-        { class: 'panel' },
-        el(
-          'div',
-          { class: 'panel__head' },
-          el('h2', { class: 'panel__title' }, 'Deployment probe — /api/health'),
-          health,
-        ),
-        el(
-          'div',
-          { class: 'panel__body' },
-          readout,
-          el(
-            'p',
-            { class: 'note' },
-            'This is a smoke test for the hosting model, not a data module: it confirms that one Worker is serving both this bundle and its own API route on one origin. Every value shown is observed by that Worker at request time; anything it cannot observe reads “not reported” rather than being filled in.',
-          ),
-        ),
-      ),
-
-      el(
-        'section',
-        { class: 'panel' },
-        el('div', { class: 'panel__head' }, el('h2', { class: 'panel__title' }, 'Order of work')),
-        el(
-          'div',
-          { class: 'panel__body' },
-          el(
-            'ul',
-            { class: 'steps' },
-            ...STEPS.map((s) =>
-              el(
-                'li',
-                {},
-                el('span', { class: s.done ? 'tag tag--done' : 'tag' }, s.done ? `${s.tag} ✓` : s.tag),
-                el('span', {}, s.text),
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      el(
-        'footer',
-        { class: 'footer' },
-        'Single Cloudflare Worker · static assets + API + relay on one origin · zero keys in this bundle',
       ),
     ),
   );
 }
 
-async function probeHealth(): Promise<void> {
-  const status = document.querySelector('#health');
-  const readout = document.querySelector('#health-readout');
-  if (!status || !readout) return;
+function main(): void {
+  const app = document.querySelector<HTMLDivElement>('#app');
+  if (!app) throw new Error('#app mount point is missing from index.html');
 
-  const show = (dotClass: string, text: string, cells: HTMLElement[]): void => {
-    status.replaceChildren(el('span', { class: `dot ${dotClass}` }), text);
-    readout.replaceChildren(...cells);
-  };
+  const shell = renderShell();
+  app.append(shell);
 
-  try {
-    const response = await fetch('/api/health', { headers: { accept: 'application/json' } });
-    if (!response.ok) {
-      // An HTTP error is reported as an error with its reason. It is never
-      // downgraded into an empty-but-successful state.
-      show('dot--error', `error — HTTP ${response.status}`, [
-        cell('worker time', null),
-        cell('runtime', null),
-        cell('colo', null),
-        cell('probe', `HTTP ${response.status}`),
-      ]);
-      return;
-    }
+  const lifecycle = new LifecycleManager({ maxConcurrentSockets: 4 });
+  const catalog = createCatalog(allModules(), lifecycle);
+  shell.append(catalog.root);
 
-    const body = (await response.json()) as {
-      workerTime?: string;
-      runtime?: string;
-      colo?: string | null;
-    };
-    show('dot--ok', 'ok', [
-      cell('worker time', body.workerTime ?? null),
-      cell('runtime', body.runtime ?? null),
-      // Absent on local dev by design: the local runtime's `cf` object is a
-      // placeholder, so there is no observed colo to show.
-      cell('colo', body.colo ?? null),
-      cell('probe', 'reached the Worker'),
-    ]);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : 'unknown failure';
-    show('dot--error', 'error', [
-      cell('worker time', null),
-      cell('runtime', null),
-      cell('colo', null),
-      cell('probe', reason),
-    ]);
-  }
+  shell.append(
+    el(
+      'footer',
+      { class: 'footer' },
+      'Single Cloudflare Worker · static assets + API + relay on one origin · zero keys in this bundle',
+    ),
+  );
+
+  // Tear down cleanly on navigation away, so a bfcache restore does not leave
+  // orphaned sockets and timers behind.
+  window.addEventListener('pagehide', () => {
+    catalog.destroy();
+    lifecycle.destroy();
+  });
 }
 
-render();
-void probeHealth();
+main();
