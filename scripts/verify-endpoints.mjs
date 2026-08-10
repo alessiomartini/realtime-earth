@@ -21,8 +21,25 @@
  *   node scripts/verify-endpoints.mjs --json       # machine-readable output
  */
 
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 20_000;
 const BROWSER_ORIGIN = 'https://realtime-earth.example';
+
+// Some sources treat an unidentified client differently from a browser. Since
+// the question being answered is "will a browser get this?", the probe presents
+// itself as one rather than as a bare fetch client.
+const USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
+/**
+ * IMPORTANT CAVEAT ON WHERE THIS RUNS.
+ *
+ * In CI this executes on a GitHub runner, which is US-based. Some sources
+ * geo-restrict, so a refusal here is evidence about the runner's location, not
+ * necessarily about a visitor's browser — and conversely a success here does
+ * not prove availability everywhere. Where that distinction matters (Binance is
+ * the known case) the report says so rather than silently declaring the source
+ * dead. Run this locally too before dropping a source on CI evidence alone.
+ */
 
 /**
  * Candidate sources named in the project spec. `expectedLane` records the lane
@@ -31,22 +48,41 @@ const BROWSER_ORIGIN = 'https://realtime-earth.example';
 const ENDPOINTS = [
   // --- Section 1: finance & markets ---
   { id: 'binance-ws', kind: 'ws', expectedLane: 'A', url: 'wss://stream.binance.com:9443/stream?streams=btcusdt@aggTrade', note: 'aggTrade + bookTicker, tick-by-tick' },
+  // Candidates for when the main endpoint refuses: binance.vision is Binance's
+  // market-data-only host, and the REST ping exposes the refusal's status code
+  // (a 451 would mean the runner's location is blocked, not the endpoint).
+  { id: 'binance-ws-vision', kind: 'ws', expectedLane: 'A', url: 'wss://data-stream.binance.vision/stream?streams=btcusdt@aggTrade', note: 'market-data-only host' },
+  { id: 'binance-rest-ping', kind: 'rest', expectedLane: 'A', url: 'https://api.binance.com/api/v3/ping', note: 'diagnostic: reveals why the WS handshake fails' },
   { id: 'coinbase-ws', kind: 'ws', expectedLane: 'A', url: 'wss://ws-feed.exchange.coinbase.com', note: 'matches channel, second venue for spread' },
   { id: 'stooq-quote', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=spy.us&f=sd2t2ohlcv&h&e=csv', note: 'delayed / EOD equities CSV' },
+  { id: 'stooq-index', kind: 'rest', expectedLane: 'B', url: 'https://stooq.com/q/l/?s=%5Espx&f=sd2t2ohlcv&h&e=csv', note: 'index variant, in case the .us symbol path is the problem' },
 
   // --- Section 2: logistics & infrastructure ---
-  { id: 'adsb-lol', kind: 'rest', expectedLane: 'A', url: 'https://api.adsb.lol/v2/lat/51.5/lon/0.0/dist/50', note: 'keyless ADS-B, bounded region' },
-  { id: 'adsb-fi', kind: 'rest', expectedLane: 'A', url: 'https://opendata.adsb.fi/api/v2/lat/51.5/lon/0.0/dist/50', note: 'ADS-B fallback' },
-  { id: 'airplanes-live', kind: 'rest', expectedLane: 'A', url: 'https://api.airplanes.live/v2/point/51.5/0.0/50', note: 'ADS-B fallback' },
-  { id: 'opensky', kind: 'rest', expectedLane: 'A', url: 'https://opensky-network.org/api/states/all?lamin=50&lomin=-1&lamax=52&lomax=2', note: 'heavily rate-limited, largely OAuth-gated now' },
+  // ADS-B: the spec assumed adsb.lol / adsb.fi were the CORS-friendly ones.
+  // The first verification run showed the opposite — both answer 200 with no
+  // access-control-allow-origin at all, so a browser cannot read them, while
+  // airplanes.live returns `*`. `expectedLane` still records what the spec
+  // assumed, so the report keeps flagging the contradiction until the design
+  // is updated rather than quietly agreeing with itself.
+  { id: 'adsb-lol', kind: 'rest', expectedLane: 'A', url: 'https://api.adsb.lol/v2/lat/51.5/lon/0.0/dist/50', note: 'keyless, but no CORS header observed — browser cannot read it directly' },
+  { id: 'adsb-fi', kind: 'rest', expectedLane: 'A', url: 'https://opendata.adsb.fi/api/v2/lat/51.5/lon/0.0/dist/50', note: 'keyless, but no CORS header observed' },
+  { id: 'airplanes-live', kind: 'rest', expectedLane: 'A', url: 'https://api.airplanes.live/v2/point/51.5/0.0/50', note: 'keyless AND CORS `*` — the only Lane A ADS-B source found' },
+  { id: 'opensky', kind: 'rest', expectedLane: 'A', url: 'https://opensky-network.org/api/states/all?lamin=50&lomin=-1&lamax=52&lomax=2', note: 'answers, but CORS is restricted to its own origin; also rate-limited' },
   { id: 'ripe-ris-live', kind: 'ws', expectedLane: 'A', url: 'wss://ris-live.ripe.net/v1/ws/', note: 'BGP UPDATE stream' },
   { id: 'aisstream', kind: 'ws', expectedLane: 'C', url: 'wss://stream.aisstream.io/v0/stream', note: 'key-gated: expect handshake ok, then auth failure without a key', needsKey: true },
 
   // --- Section 3: earth system & energy ---
   { id: 'carbonintensity-uk', kind: 'rest', expectedLane: 'A', url: 'https://api.carbonintensity.org.uk/intensity', note: 'keyless, CORS-open' },
   { id: 'carbonintensity-mix', kind: 'rest', expectedLane: 'A', url: 'https://api.carbonintensity.org.uk/generation', note: 'generation mix' },
-  { id: 'swpc-solar-wind', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'DSCOVR plasma' },
-  { id: 'swpc-mag', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json', note: 'DSCOVR magnetic field, Bz' },
+  // The 5-minute files 404'd on the first run. SWPC issued a 2026 service
+  // change affecting product formats, so the longer windows are probed as
+  // candidates rather than assuming which files still exist.
+  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'DSCOVR plasma' },
+  { id: 'swpc-plasma-2h', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json', note: 'DSCOVR plasma, 2h window' },
+  { id: 'swpc-plasma-1d', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json', note: 'DSCOVR plasma, 1d window' },
+  { id: 'swpc-mag-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json', note: 'DSCOVR magnetic field, Bz' },
+  { id: 'swpc-mag-2h', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-2-hour.json', note: 'DSCOVR Bz, 2h window' },
+  { id: 'swpc-mag-1d', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json', note: 'DSCOVR Bz, 1d window' },
   { id: 'swpc-kp', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', note: 'planetary K-index' },
   { id: 'swpc-xray', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', note: 'GOES X-ray flux' },
   { id: 'usgs-hour', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson', note: 'keyless, CORS-open' },
@@ -73,7 +109,7 @@ function withTimeout(ms) {
   return { signal: controller.signal, done: () => clearTimeout(timer) };
 }
 
-async function checkHttp(endpoint) {
+async function checkHttp(endpoint, attempt = 1) {
   const { signal, done } = withTimeout(TIMEOUT_MS);
   const started = Date.now();
   try {
@@ -83,6 +119,7 @@ async function checkHttp(endpoint) {
       // whether the source will actually answer a browser (Lane A) or not.
       headers: {
         origin: BROWSER_ORIGIN,
+        'user-agent': USER_AGENT,
         ...(endpoint.body ? { 'content-type': 'application/json' } : {}),
         ...(endpoint.kind === 'sse' ? { accept: 'text/event-stream' } : {}),
       },
@@ -116,7 +153,22 @@ async function checkHttp(endpoint) {
       sample,
     };
   } catch (error) {
-    return { ok: false, status: 'ERR', cors: 'n/a', corsOk: false, ms: Date.now() - started, contentType: '', sample: String(error?.message ?? error) };
+    // Retry once on a transport failure. A source that is merely slow or drops
+    // one connection should not be recorded as dead — that would be as
+    // misleading as recording a dead source as alive.
+    if (attempt === 1) {
+      done();
+      return checkHttp(endpoint, 2);
+    }
+    return {
+      ok: false,
+      status: 'ERR',
+      cors: 'n/a',
+      corsOk: false,
+      ms: Date.now() - started,
+      contentType: '',
+      sample: `${String(error?.message ?? error)} (2 attempts)`,
+    };
   } finally {
     done();
   }
