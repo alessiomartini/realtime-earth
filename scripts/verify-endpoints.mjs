@@ -16,9 +16,15 @@
  * or CI runner, not from a sandbox with an egress allowlist.
  *
  * Usage:
- *   node scripts/verify-endpoints.mjs              # check everything
- *   node scripts/verify-endpoints.mjs usgs binance # check by id substring
- *   node scripts/verify-endpoints.mjs --json       # machine-readable output
+ *   node scripts/verify-endpoints.mjs                   # check everything
+ *   node scripts/verify-endpoints.mjs usgs binance      # check by id substring
+ *   node scripts/verify-endpoints.mjs --json            # machine-readable output
+ *   node scripts/verify-endpoints.mjs --json-out=f.json # table + JSON in one pass
+ *
+ * Use `--json-out` rather than running the script twice. Probing a source twice
+ * in quick succession is enough to trip the rate limits of the very sources
+ * this is meant to assess (GDELT allows one request per five seconds), which
+ * turns the report into a measurement of our own impatience.
  */
 
 const TIMEOUT_MS = 20_000;
@@ -89,10 +95,15 @@ const ENDPOINTS = [
   // wind source in 2026, retiring the legacy products. Rather than guess the
   // replacement filenames, these two entries read the source's own directory
   // listings, so the next run reports what SWPC actually publishes today.
-  { id: 'swpc-index-solar-wind', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1400, url: 'https://services.swpc.noaa.gov/products/solar-wind/', note: 'DISCOVERY: list what still exists in this directory' },
-  { id: 'swpc-index-products', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1400, url: 'https://services.swpc.noaa.gov/products/', note: 'DISCOVERY: find where solar wind moved to' },
-  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'legacy DSCOVR plasma — 404 since the SOLAR-1 transition' },
-  { id: 'swpc-mag-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json', note: 'legacy DSCOVR Bz — 404 since the SOLAR-1 transition' },
+  // CONFIRMED by reading /products/ itself: there is no `solar-wind/`
+  // directory any more. It is not a moved file or a renamed window — the whole
+  // directory is gone, along with the DSCOVR plasma and mag products the spec
+  // asked for. The remaining question is what replaced them, so the search
+  // continues one level down instead of guessing filenames.
+  { id: 'swpc-index-products', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/products/', note: 'DISCOVERY: full listing — solar-wind/ is absent from it' },
+  { id: 'swpc-index-summary', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/products/summary/', note: 'DISCOVERY: summary products, a likely home for wind speed and Bz' },
+  { id: 'swpc-index-json', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2600, url: 'https://services.swpc.noaa.gov/json/', note: 'DISCOVERY: the other SWPC tree, where GOES X-ray already lives' },
+  { id: 'swpc-plasma-5min', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json', note: 'RETIRED: directory no longer exists (DSCOVR ingest stopped)' },
   { id: 'swpc-kp', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', note: 'planetary K-index' },
   { id: 'swpc-xray', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', note: 'GOES X-ray flux' },
   { id: 'usgs-hour', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson', note: 'keyless, CORS-open' },
@@ -108,6 +119,7 @@ const ENDPOINTS = [
 
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
+const jsonOut = args.find((a) => a.startsWith('--json-out='))?.slice('--json-out='.length);
 const filters = args.filter((a) => !a.startsWith('--'));
 const selected = filters.length
   ? ENDPOINTS.filter((e) => filters.some((f) => e.id.includes(f)))
@@ -289,6 +301,11 @@ for (const endpoint of selected) {
     note: endpoint.note,
     ...outcome,
   });
+}
+
+if (jsonOut) {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(jsonOut, JSON.stringify(results, null, 2));
 }
 
 if (asJson) {
