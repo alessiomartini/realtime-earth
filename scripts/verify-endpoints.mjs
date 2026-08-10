@@ -126,16 +126,30 @@ function checkWebSocket(endpoint) {
   const started = Date.now();
   return new Promise((resolve) => {
     let socket;
+    let settled = false;
+
     const finish = (result) => {
+      // A failing socket can emit `error` and then `close`, and a timeout can
+      // race both. Settle exactly once, or the report double-counts a single
+      // endpoint.
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       try {
-        socket?.close();
+        // Only an OPEN socket can be closed; calling close() while still
+        // CONNECTING throws from inside the WebSocket implementation and
+        // surfaces as an unhandled rejection.
+        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
       } catch {
-        /* already closed */
+        /* nothing left to clean up */
       }
       resolve({ ms: Date.now() - started, cors: 'n/a', corsOk: true, contentType: '', ...result });
     };
-    const timer = setTimeout(() => finish({ ok: false, status: 'TIMEOUT', sample: `no open event within ${TIMEOUT_MS}ms` }), TIMEOUT_MS);
+
+    const timer = setTimeout(
+      () => finish({ ok: false, status: 'TIMEOUT', sample: `no open event within ${TIMEOUT_MS}ms` }),
+      TIMEOUT_MS,
+    );
 
     try {
       socket = new WebSocket(endpoint.url);
@@ -153,6 +167,14 @@ function checkWebSocket(endpoint) {
     socket.addEventListener('error', () => {
       finish({ ok: false, status: 'ERR', sample: 'handshake failed' });
     });
+    socket.addEventListener('close', (event) => {
+      // Reached only when the socket closed without ever opening.
+      finish({
+        ok: false,
+        status: 'CLOSED',
+        sample: `closed before open (code ${event.code}${event.reason ? `: ${event.reason}` : ''})`,
+      });
+    });
   });
 }
 
@@ -161,14 +183,33 @@ for (const endpoint of selected) {
   const outcome = endpoint.kind === 'ws' ? await checkWebSocket(endpoint) : await checkHttp(endpoint);
 
   // Lane A requires keyless + CORS-permitted. Anything else must be proxied.
-  const laneEvidence = endpoint.kind === 'ws' ? (endpoint.needsKey ? 'C' : 'A') : outcome.corsOk && !endpoint.needsKey ? 'A' : 'B';
+  //
+  // An unreachable source yields no lane evidence at all. Calling it "Lane B"
+  // because no CORS header came back would be inventing a finding out of a
+  // failure — the same move the site's first principle forbids — so it is
+  // reported as unknown and no mismatch is claimed.
+  // A key-gated source answering 401/403 without a key is working as designed:
+  // the host is up and the gate is real. That is a successful probe, and it is
+  // also the evidence that the source cannot be Lane A.
+  const gated = Boolean(endpoint.needsKey) && ['400', '401', '403'].includes(outcome.status);
+  const reachable = outcome.ok || gated;
+
+  let laneEvidence;
+  if (endpoint.kind === 'ws') {
+    laneEvidence = reachable ? (endpoint.needsKey ? 'C' : 'A') : '?';
+  } else {
+    laneEvidence = reachable ? (outcome.corsOk && !endpoint.needsKey ? 'A' : 'B') : '?';
+  }
+
   results.push({
+    reachable,
+    gated,
     id: endpoint.id,
     kind: endpoint.kind,
     url: endpoint.url,
     expectedLane: endpoint.expectedLane,
     laneEvidence,
-    laneMismatch: laneEvidence !== endpoint.expectedLane,
+    laneMismatch: laneEvidence !== '?' && laneEvidence !== endpoint.expectedLane,
     note: endpoint.note,
     ...outcome,
   });
@@ -178,15 +219,19 @@ if (asJson) {
   console.log(JSON.stringify(results, null, 2));
 } else {
   const pad = (s, n) => String(s).padEnd(n).slice(0, n);
-  console.log(pad('ID', 22) + pad('KIND', 6) + pad('STATUS', 8) + pad('CORS', 26) + pad('LANE', 12) + 'MS');
+  console.log(pad('ID', 22) + pad('KIND', 6) + pad('STATUS', 12) + pad('CORS', 26) + pad('LANE', 12) + 'MS');
   console.log('-'.repeat(96));
   for (const r of results) {
-    const lane = r.laneMismatch ? `${r.expectedLane}→${r.laneEvidence} !` : r.expectedLane;
-    console.log(pad(r.id, 22) + pad(r.kind, 6) + pad(r.status, 8) + pad(r.cors, 26) + pad(lane, 12) + r.ms);
-    if (!r.ok || r.laneMismatch) console.log(`  ↳ ${r.sample}`);
+    const lane = r.laneMismatch ? `${r.expectedLane}→${r.laneEvidence} !` : r.laneEvidence === '?' ? `${r.expectedLane} (?)` : r.expectedLane;
+    const status = r.gated ? `${r.status} gated` : r.status;
+    console.log(pad(r.id, 22) + pad(r.kind, 6) + pad(status, 12) + pad(r.cors, 26) + pad(lane, 12) + r.ms);
+    // Print the body for anything that is not a plain success, so a gate's own
+    // wording is visible — that is what distinguishes "needs a key" from
+    // "blocked by something between us and the source".
+    if (!r.reachable || r.laneMismatch || r.gated) console.log(`  ↳ ${r.sample}`);
   }
   console.log('-'.repeat(96));
-  const failed = results.filter((r) => !r.ok);
+  const failed = results.filter((r) => !r.reachable);
   const mismatched = results.filter((r) => r.laneMismatch);
   console.log(`${results.length - failed.length}/${results.length} reachable; ${mismatched.length} lane mismatch(es).`);
   if (failed.length) console.log(`Unreachable: ${failed.map((r) => r.id).join(', ')}`);
