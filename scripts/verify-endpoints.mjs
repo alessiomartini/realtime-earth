@@ -121,6 +121,19 @@ const ENDPOINTS = [
   { id: 'gdelt-doc', kind: 'rest', expectedLane: 'B', url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=climate&mode=artlist&format=json&maxrecords=5', note: 'no CORS — expect Lane B' },
   { id: 'mempool-ws', kind: 'ws', expectedLane: 'A', url: 'wss://mempool.space/api/v1/ws', note: 'unconfirmed tx, fee bands, blocks' },
   { id: 'eth-rpc-publicnode', kind: 'rest', method: 'POST', body: '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}', expectedLane: 'A', url: 'https://ethereum-rpc.publicnode.com', note: 'block number, base fee, gas used' },
+
+  // --- history endpoints, so a view opens with data instead of empty --------
+  // A chart that starts blank and fills over the next few minutes is useless on
+  // arrival. Each module backfills from its source's OWN history endpoint —
+  // still received data, not invention, which is precisely why these need
+  // verifying like anything else.
+  { id: 'binance-klines-vision', kind: 'rest', expectedLane: 'A', url: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5', note: 'price history; market-data host, since api.binance.com is geo-restricted' },
+
+  // --- surface temperature, for the hover map ------------------------------
+  // Open-Meteo accepts several coordinates per request, which is what makes a
+  // grid affordable. This is numerical model output, not a thermometer at that
+  // spot, and the module has to say so.
+  { id: 'open-meteo-grid', kind: 'rest', expectedLane: 'A', sampleChars: 400, discovery: true, url: 'https://api.open-meteo.com/v1/forecast?latitude=52.5,48.9,41.9&longitude=13.4,2.3,12.5&current=temperature_2m', note: 'multi-point current temperature, keyless' },
 ];
 
 const args = process.argv.slice(2);
