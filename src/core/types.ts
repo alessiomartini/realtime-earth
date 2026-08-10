@@ -52,13 +52,38 @@ export interface DataModule {
 
   mount(el: HTMLElement): void;
   connect(): void;
-  /** MUST fully tear down: sockets closed, timers cleared, listeners removed. */
+  /** MUST fully tear down the transport: sockets closed, timers cleared. */
   disconnect(): void;
+
+  /**
+   * Release what `mount` created — charts, canvases, ResizeObservers.
+   *
+   * Separate from `disconnect` because the two have different lifetimes: a feed
+   * is disconnected whenever it scrolls out of view, but its chart should
+   * survive that. Only leaving the page destroys the view. Without this,
+   * navigating between feeds would leak an observer and a plot each time, and
+   * "no heap growth over a 30-minute session" would quietly stop being true.
+   */
+  unmount?(): void;
 
   health: Health;
 
-  /** Messages actually received from the source since page load. */
+  /** Messages actually received live from the source since page load. */
   readonly messageCount: number;
+
+  /**
+   * Historical points loaded from the source's own history endpoint when the
+   * view opened, so a chart arrives populated instead of blank.
+   *
+   * Counted separately from `messageCount` on purpose. Backfilled points are
+   * real received data, but they are not events that happened while you were
+   * watching — folding them into the site's "events received since you opened
+   * this page" counter would inflate the one number the whole thesis rests on.
+   */
+  readonly backfillCount: number;
+
+  /** What the backfill covers, or why this feed has none. Shown on the page. */
+  readonly historyNote: string | null;
   /** The source's own timestamp for the latest datum, in ms. Null if none. */
   readonly lastSourceTimestamp: number | null;
   /** Why this module is in the `error` state. Null when it is not. */

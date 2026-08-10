@@ -20,6 +20,8 @@ export interface BaseModuleConfig {
    * A snapshot module has no cadence to miss and passes `null`.
    */
   staleAfterMs: number | null;
+  /** What the backfill covers, or why this feed has none. */
+  historyNote?: string | null;
   backoff?: BackoffOptions;
 }
 
@@ -51,10 +53,12 @@ export abstract class BaseModule implements DataModule {
   readonly cadence: string;
   readonly source: SourceRef;
   readonly staleAfterMs: number | null;
+  readonly historyNote: string | null;
 
   health: Health = 'connecting';
 
   #messageCount = 0;
+  #backfillCount = 0;
   #lastSourceTimestamp: number | null = null;
   /** Local clock reading of the last arrival — for the watchdog only, never displayed as data. */
   #lastArrivalAt: number | null = null;
@@ -79,11 +83,16 @@ export abstract class BaseModule implements DataModule {
     this.cadence = config.cadence;
     this.source = config.source;
     this.staleAfterMs = config.staleAfterMs;
+    this.historyNote = config.historyNote ?? null;
     this.#backoff = new Backoff(config.backoff ?? {});
   }
 
   get messageCount(): number {
     return this.#messageCount;
+  }
+
+  get backfillCount(): number {
+    return this.#backfillCount;
   }
 
   get lastSourceTimestamp(): number | null {
@@ -147,6 +156,18 @@ export abstract class BaseModule implements DataModule {
     this.health = 'ok';
     this.#backoff.reset();
     this.#armStaleTimer();
+  }
+
+  /**
+   * Record historical points loaded from the source's own history endpoint.
+   *
+   * Kept out of `messageCount`, and out of the site's global counter, because
+   * these are real data but not events that happened while you were watching.
+   * They also must not set health to `ok`: a successful backfill says the
+   * history endpoint answered, not that the live stream is delivering.
+   */
+  protected markBackfilled(count: number): void {
+    this.#backfillCount += count;
   }
 
   /** Connection established, but no data has arrived yet. */

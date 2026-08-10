@@ -4,11 +4,16 @@ import type { DataModule } from '../core/types.js';
  * The module registry.
  *
  * Adding a feed to this site is: create one file under `src/modules/`, and add
- * one import line below. Nothing else. The catalog, the filters, the status
- * strips, the lifecycle management and the global counter all pick it up from
- * here.
+ * one import line to `all.ts`. Nothing else. The grid, the filters, the status
+ * strips, the lifecycle management and the global counter all pick it up.
  *
  * Modules self-register by calling `register()` at import time.
+ *
+ * THIS FILE MUST NOT IMPORT ANY MODULE. ES imports are hoisted above the rest
+ * of a module's body, so an `import './some-feed.js'` here would run that
+ * feed's `register()` call before the Map below had been created — and the
+ * whole site would fail to start. The import list therefore lives in `all.ts`,
+ * which imports this file first and the feeds after.
  */
 
 const registered = new Map<string, DataModule>();
@@ -33,15 +38,3 @@ export function moduleById(id: string): DataModule | undefined {
 export function moduleCount(): number {
   return registered.size;
 }
-
-// --- registrations -------------------------------------------------------
-// One import line per feed. Keep them grouped by section, in catalog order.
-//
-// Step 3 adds the three reference modules covering the direct transports:
-//   import './usgs-earthquakes.js';     // Lane A, poll
-//   import './wikipedia-changes.js';    // Lane A, SSE
-//   import './binance-trades.js';       // Lane A, WebSocket
-//
-// Nothing is registered yet. The catalog renders that as an explicit empty
-// state rather than as placeholder cards: until a feed is wired to a verified
-// endpoint, it does not exist on this site.

@@ -1,0 +1,40 @@
+name: Verify live site
+
+# The development sandbox has no outbound network, so no feed can be exercised
+# there. This drives a real browser against the deployed origin and asserts that
+# data actually arrives — the only place that claim can honestly be made.
+
+on:
+  workflow_run:
+    workflows: ['Deploy']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Base URL to verify'
+        required: false
+  schedule:
+    # Daily. A feed that quietly dies should surface here, not in front of a reader.
+    - cron: '41 7 * * *'
+
+jobs:
+  verify:
+    name: Drive the deployed site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm i -D playwright@latest
+      - run: npx playwright install --with-deps chromium
+
+      - name: Verify the live feeds
+        env:
+          URL: ${{ inputs.url || 'https://realtime-earth.alemarti-2001.workers.dev' }}
+        run: node scripts/verify-live.mjs "$URL"

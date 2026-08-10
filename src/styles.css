@@ -591,3 +591,371 @@ a:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* --- home tiles -------------------------------------------------------- */
+
+.principles--compact {
+  margin: 2rem 0 0;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--bg-panel);
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.tile:hover {
+  border-color: var(--rule-strong);
+  background: #131920;
+}
+
+.tile__top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tile__transport {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  margin-left: auto;
+}
+
+.tile__title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.tile__oneliner {
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  line-height: 1.45;
+  flex: 1 1 auto;
+}
+
+.tile__strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--fg-dim);
+}
+
+.tile__metric {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.tile__unit {
+  color: var(--fg-faint);
+  margin-left: 0.2em;
+}
+
+.tile__healthgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.tile__open {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+/* --- feed page --------------------------------------------------------- */
+
+.backlink {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+  text-decoration: none;
+  margin: 1.5rem 0 1rem;
+}
+
+.backlink:hover {
+  color: var(--accent);
+}
+
+.module__section {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin: 0 0 0.35rem;
+}
+
+.module__title {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.module__oneliner {
+  color: var(--fg-dim);
+  margin: 0 0 1rem;
+  max-width: 62ch;
+}
+
+.module__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 1.5rem;
+}
+
+.module__tag {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  padding: 0.1rem 0.35rem;
+}
+
+.module__healthgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--fg-dim);
+  margin-left: auto;
+}
+
+.module__mount {
+  margin-bottom: 1.5rem;
+}
+
+.module__summary {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  margin: 0.75rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.module__caveat,
+.module__history {
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  border-left: 2px solid var(--rule-strong);
+  padding-left: 0.9rem;
+  margin: 1.25rem 0;
+  max-width: 72ch;
+}
+
+.module__why {
+  color: var(--fg-dim);
+  font-size: 0.9375rem;
+  max-width: 66ch;
+  margin: 1.5rem 0 1rem;
+}
+
+.module .readout {
+  margin: 1.5rem 0;
+}
+
+/* --- map and chart ----------------------------------------------------- */
+
+.mapbox,
+.chartbox {
+  border: 1px solid var(--rule);
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.worldmap {
+  display: block;
+}
+
+.mapbox--interactive .worldmap {
+  cursor: crosshair;
+}
+
+.readout-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  background: var(--bg-panel);
+  min-height: 2.4rem;
+}
+
+.readout-line--muted {
+  color: var(--fg-faint);
+  min-height: 2.1rem;
+}
+
+.readout-line__where {
+  color: var(--fg-dim);
+}
+
+.readout-line__value {
+  font-size: 1.125rem;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-line__note {
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+}
+
+/* --- event list and tape ----------------------------------------------- */
+
+.eventlist,
+.tape {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  border: 1px solid var(--rule);
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.eventlist__item,
+.tape__row {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+
+.eventlist__item {
+  grid-template-columns: 3rem 1fr auto;
+}
+
+.eventlist__item--live {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.eventlist__mag {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  text-align: right;
+}
+
+.eventlist__place {
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventlist__time,
+.tape__time {
+  color: var(--fg-faint);
+}
+
+.tape__row {
+  grid-template-columns: 6rem 6rem auto;
+}
+
+.tape--wide .tape__row {
+  grid-template-columns: 5rem 1fr 4rem 8rem;
+}
+
+.tape__price {
+  font-variant-numeric: tabular-nums;
+}
+
+.tape__row--buy .tape__price {
+  color: var(--accent);
+}
+
+.tape__row--sell .tape__price {
+  color: var(--accent-red);
+}
+
+.tape__qty {
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.tape__wiki {
+  color: var(--fg-faint);
+}
+
+.tape__title {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tape__user {
+  color: var(--fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tape__row--bot .tape__title {
+  color: var(--fg-dim);
+}
+
+.tape__delta {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+}
+
+.tape__delta--pos {
+  color: var(--accent);
+}
+
+.tape__delta--neg {
+  color: var(--accent-red);
+}
+
+/* uPlot on a dark ground */
+.u-legend {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--fg-dim);
+}
+
+.u-legend .u-marker {
+  border-radius: 0;
+}
+
+.home-intro .thesis {
+  padding-bottom: 0;
+}
+
+.principles--compact {
+  margin: 2.5rem 0 0;
+}
