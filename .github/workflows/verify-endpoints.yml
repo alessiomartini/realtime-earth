@@ -1,0 +1,65 @@
+name: Verify endpoints
+
+# The project rule is that no endpoint gets wired before it is verified to
+# work. That check needs unrestricted outbound network access, which a GitHub
+# runner has, so verification runs here and its log is the evidence.
+#
+# It is also worth running on a schedule: sources rot. A feed that goes gated,
+# drops its CORS header, or disappears should surface as a failed check rather
+# than as a broken module in production — which is exactly how the retirement
+# of SWPC's solar wind products and Stooq's new API key were caught.
+
+on:
+  push:
+    paths:
+      - 'scripts/verify-endpoints.mjs'
+      - '.github/workflows/verify-endpoints.yml'
+  workflow_dispatch:
+  schedule:
+    # Weekly, Mondays 06:17 UTC (off the hour to avoid the scheduler rush).
+    - cron: '17 6 * * 1'
+
+concurrency:
+  group: verify-endpoints-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Probe every candidate source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No install step: the script is dependency-free on purpose, so source
+      # verification never depends on the project's build being healthy.
+
+      # One pass, two outputs. Running the script twice doubled every request
+      # and was enough on its own to trip the rate limits of the sources being
+      # assessed, which made the report measure our own impatience.
+      - name: Probe every source once
+        run: node scripts/verify-endpoints.mjs --json-out=/tmp/verify.json | tee /tmp/verify.txt
+
+      - name: Publish to job summary
+        if: always()
+        run: |
+          {
+            echo '## Endpoint verification'
+            echo
+            echo '```'
+            cat /tmp/verify.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: endpoint-verification
+          path: |
+            /tmp/verify.txt
+            /tmp/verify.json
+          retention-days: 30

@@ -116,7 +116,7 @@ the known case.
 
 ## Deployment
 
-CI is `.github/workflows/deploy-realtime-earth.yml` at the repository root. It
+CI is `.github/workflows/deploy.yml`. It
 typechecks, builds, audits the bundle for secrets, and on `main` deploys with
 `cloudflare/wrangler-action`.
 

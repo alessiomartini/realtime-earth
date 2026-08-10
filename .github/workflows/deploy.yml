@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (client and worker)
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      # Acceptance criterion: zero secrets in the client bundle. This runs
+      # before deploy so a leaked key fails the pipeline instead of shipping.
+      - name: Audit built bundle for secrets
+        run: npm run audit:bundle
+
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Audit built bundle for secrets
+        run: npm run audit:bundle
+
+      - name: Deploy Worker (static assets + routes)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Feed keys are set with `wrangler secret put`, never committed and
+          # never present in the client bundle. They are added to this workflow
+          # in step 4 (Lane B) and step 5 (Lane C), via the action's `secrets`
+          # input plus matching repository secrets.
