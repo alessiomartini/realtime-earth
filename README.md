@@ -4,12 +4,24 @@ A modular catalog of live global data feeds. The thesis: right now, humanity has
 an unprecedented amount of high-quality real-time data publicly available — this
 site shows a live sample of it, unmodified.
 
-**Status: step 2 of 7 (catalog machinery).** No data feeds are connected yet,
-so the catalog renders an explicit empty state — which is the point: a scaffold
-that shipped demo cards to look finished would break the third founding
-principle on its first screen. What exists is the machinery every feed will
-use: the module contract, the registry, the card shell and status strip, and
-the lifecycle manager.
+**Status: step 3 of 7 — four live feeds.** Deployed at
+<https://realtime-earth.alemarti-2001.workers.dev>.
+
+The home page is a grid of tiles, one per feed, each linking to that feed's own
+page at `/m/<id>` with the full chart or map. Feeds open with history from their
+source's own endpoint where one exists, then continue live.
+
+| Feed | Transport | History on open |
+| --- | --- | --- |
+| Bitcoin trades | WebSocket, tick-by-tick | 180 one-minute closes (Binance klines) |
+| Global seismicity | poll, 60s | past 24h (USGS all_day) |
+| Surface temperature | poll, 15 min | none — current field only |
+| Wikipedia edits | Server-Sent Events | none available; opens empty and says so |
+
+Verified against the deployed site by `scripts/verify-live.mjs`, which drives a
+real browser after every deploy and daily. The development sandbox has no
+outbound network, so that job is the only place the claim "the feeds work" can
+honestly be made.
 
 ## Adding a module
 

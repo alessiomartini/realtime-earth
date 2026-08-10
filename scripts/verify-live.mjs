@@ -56,10 +56,14 @@ const ids = await page.locator('.tile').evaluateAll((nodes) =>
 );
 check(ids.every(Boolean), `every tile links to a feed page (${ids.join(', ')})`);
 
-// The counter must reflect live arrivals. Give the sockets a moment.
-await page.waitForTimeout(7000);
+// The counter must reflect live arrivals — but feeds connect lazily, so it
+// only means anything once the grid is actually in view. Scroll to it first;
+// reading the counter from the top of the page measures the reader's scroll
+// position, not the site.
+await page.locator('.counter').scrollIntoViewIfNeeded();
+await page.waitForTimeout(10000);
 const counter = Number((await page.locator('.counter__value').innerText()).replace(/[^0-9]/g, ''));
-notes.push(`global live counter after ~10s on the home grid: ${counter}`);
+check(counter > 0, `global counter is counting live arrivals on the home grid (${counter})`);
 
 for (const id of ids) {
   console.log(`\n== feed: /m/${id}`);

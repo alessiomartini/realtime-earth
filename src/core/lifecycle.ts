@@ -29,6 +29,15 @@ export interface LifecycleOptions {
    * means a card connects as it scrolls into view rather than after it lands.
    */
   visibilityThreshold?: number;
+  /**
+   * How far outside the viewport a card still counts as visible.
+   *
+   * Without this the home grid's feeds only wake once the tiles are physically
+   * on screen, so the counter above them reads 0 for as long as the reader is
+   * still on the thesis. A margin connects them just before they arrive, which
+   * is what makes the headline number mean anything on landing.
+   */
+  rootMargin?: string;
 }
 
 interface Entry {
@@ -51,7 +60,11 @@ export class LifecycleManager {
   #visibilityCounter = 0;
   #onVisibilityChange: (() => void) | null = null;
 
-  constructor({ maxConcurrentSockets = 4, visibilityThreshold = 0.01 }: LifecycleOptions = {}) {
+  constructor({
+    maxConcurrentSockets = 4,
+    visibilityThreshold = 0.01,
+    rootMargin = '400px 0px',
+  }: LifecycleOptions = {}) {
     this.#maxSockets = maxConcurrentSockets;
 
     this.#observer =
@@ -74,7 +87,7 @@ export class LifecycleManager {
               }
               this.#reconcile();
             },
-            { threshold: visibilityThreshold },
+            { threshold: visibilityThreshold, rootMargin },
           );
 
     if (typeof document !== 'undefined') {
