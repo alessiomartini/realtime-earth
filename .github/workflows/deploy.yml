@@ -58,6 +58,35 @@ jobs:
       - name: Audit built bundle for secrets
         run: npm run audit:bundle
 
+      # Wrangler's own failure for a missing token says only "set
+      # CLOUDFLARE_API_TOKEN", which is indistinguishable between "the secret
+      # does not exist", "it is named differently", "it was added under
+      # Variables rather than Secrets", and "it is scoped to an Environment
+      # this job does not declare". This step names which of those it is.
+      #
+      # The values are read as env vars, never interpolated into the script:
+      # interpolating a secret into a shell command is how secrets end up in
+      # logs. Only presence and length are reported, never content.
+      - name: Check Cloudflare credentials are visible to this job
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ok=1
+          if [ -z "$CF_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is empty in this job. Check it is a repository *Secret* (not a Variable), spelled exactly, in this repo, and not scoped to an Environment."
+            ok=0
+          else
+            echo "CLOUDFLARE_API_TOKEN: present (${#CF_TOKEN} characters)"
+          fi
+          if [ -z "$CF_ACCOUNT" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID is empty in this job. Same checks as above."
+            ok=0
+          else
+            echo "CLOUDFLARE_ACCOUNT_ID: present (${#CF_ACCOUNT} characters)"
+          fi
+          [ "$ok" = 1 ]
+
       - name: Deploy Worker (static assets + routes)
         uses: cloudflare/wrangler-action@v3
         with:
