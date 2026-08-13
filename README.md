@@ -26,7 +26,10 @@ honestly be made.
 ## Adding a module
 
 One new file under `src/modules/`, and one import line in
-`src/modules/registry.ts`. Nothing else. Extend `BaseModule`, which supplies
+`src/modules/all.ts`. Nothing else. (The import list deliberately lives in
+`all.ts` rather than in `registry.ts`: ES imports are hoisted, so importing a
+feed from `registry.ts` would run its `register()` call before the registry Map
+existed, and the whole site would fail to start.) Extend `BaseModule`, which supplies
 the counters, health, staleness watchdog and reconnect backoff, and implement
 three methods:
 
