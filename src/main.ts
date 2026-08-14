@@ -4,6 +4,7 @@ import { Router, type Route } from './core/router.js';
 import { createHome } from './ui/home.js';
 import { createModulePage } from './ui/module-page.js';
 import { allModules, moduleById } from './modules/all.js';
+import { createNotebook } from './ui/notebook.js';
 import { el } from './ui/dom.js';
 
 /**
@@ -161,6 +162,11 @@ function main(): void {
   router.bindLinks(app);
   render(router.current);
 
+  // The notebook sits outside the view, so it survives navigation: a thought
+  // half-typed on one page is not thrown away by clicking through to another.
+  const notebook = createNotebook(() => window.location.pathname);
+  app.append(notebook.root);
+
   // One tick a second drives every readout. Required regardless of arrivals:
   // the age of the last datum grows while a feed is silent, and that growing
   // number is exactly how a stalled feed reveals itself. A clock, not an
@@ -182,6 +188,7 @@ function main(): void {
     current?.destroy();
     lifecycle.destroy();
     router.destroy();
+    notebook.destroy();
   });
 }
 

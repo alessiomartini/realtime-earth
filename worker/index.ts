@@ -13,7 +13,9 @@
  * Worker route from one origin before any real feed is wired up.
  */
 
-export interface Env {
+import { handleNotes, type NotesEnv } from './notes.js';
+
+export interface Env extends NotesEnv {
   ASSETS: Fetcher;
 }
 
@@ -29,10 +31,16 @@ function json(body: unknown, status = 200): Response {
 }
 
 export default {
-  // `_env` is unused until step 4 — the assets runtime serves the bundle
-  // without this script's involvement, so nothing here needs a binding yet.
-  async fetch(request: Request, _env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // The notebook: notes written while using the site, kept so they can be
+    // collected and acted on later. Protected, and refuses to write at all
+    // when no token is configured — an open write endpoint on a public origin
+    // is not something to leave running by accident.
+    if (url.pathname === '/api/notes' || url.pathname.startsWith('/api/notes/')) {
+      return handleNotes(request, env, url);
+    }
 
     if (url.pathname === '/api/health') {
       // Every value here is observed by this Worker at request time. Nothing is

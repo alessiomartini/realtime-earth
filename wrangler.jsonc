@@ -20,6 +20,18 @@
     "run_worker_first": ["/api/*", "/ws/*"]
   },
 
+  // The notebook: notes written while using the site, kept so they can be
+  // picked up later and acted on. D1 rather than KV specifically because a SQL
+  // database can be read straight from the Cloudflare API, which is what lets
+  // the notes be collected without anyone copying them out of a browser.
+  "d1_databases": [
+    {
+      "binding": "NOTES_DB",
+      "database_name": "realtime-earth-notes",
+      "database_id": "a4e13537-0705-4a67-82d4-6ade1dd87213"
+    }
+  ],
+
   "observability": {
     "enabled": true
   }

@@ -93,10 +93,13 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Feed keys are set with `wrangler secret put`, never committed and
-          # never present in the client bundle. They are added to this workflow
-          # in step 4 (Lane B) and step 5 (Lane C), via the action's `secrets`
-          # input plus matching repository secrets.
+          # Uploaded to the Worker as secrets, never committed and never in the
+          # client bundle. NOTES_TOKEN gates the notebook's write endpoint; with
+          # it unset the Worker refuses writes rather than leaving an open one.
+          secrets: |
+            NOTES_TOKEN
+        env:
+          NOTES_TOKEN: ${{ secrets.NOTES_TOKEN }}
 
       # A green deploy step means "wrangler uploaded it", not "the site works".
       # This checks the deployed origin actually serves BOTH halves of the
