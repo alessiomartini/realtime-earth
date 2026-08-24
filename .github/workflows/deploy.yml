@@ -125,6 +125,8 @@ jobs:
       - name: Smoke-test the deployed origin
         env:
           URL: ${{ steps.deploy.outputs.deployment-url }}
+          # Only tested for emptiness, never printed or sent anywhere.
+          NOTES_TOKEN: ${{ secrets.NOTES_TOKEN }}
         run: |
           if [ -z "$URL" ]; then
             echo "::error::The deploy step reported no URL, so there is nothing to verify. Refusing to report success."
@@ -147,13 +149,40 @@ jobs:
           code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/api/does-not-exist")
           if [ "$code" != "404" ]; then echo "::error::GET /api/does-not-exist returned $code, expected 404"; fail=1; fi
 
-          # 4. The notebook must never accept an unauthenticated write. 401 when
-          #    a passphrase is configured, 503 when it is not — never 2xx.
-          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "$URL/api/notes" \
-            -H 'content-type: application/json' -d '{"body":"unauthenticated probe"}')
+          # 4. The notebook must never accept an unauthenticated write — and the
+          #    exact refusal says whether the passphrase actually reached the
+          #    Worker. 401 means it did; 503 means the Worker sees no token.
+          #
+          #    Accepting either would make this check unable to tell a working
+          #    notebook from a broken one, which was its first failure: it
+          #    passed on a 503 while the passphrase was supposedly configured.
+          #
+          #    `wrangler secret put` publishes a NEW Worker version, and the
+          #    step above finishes seconds before this one runs, so the first
+          #    request can legitimately hit the previous version. Poll rather
+          #    than judge on one shot.
+          if [ -n "$NOTES_TOKEN" ]; then expected=401; else expected=503; fi
+          code=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "$URL/api/notes" \
+              -H 'content-type: application/json' -d '{"body":"unauthenticated probe"}')
+            [ "$code" = "$expected" ] && break
+            case "$code" in
+              2*) break ;;  # a success here is a real failure; stop and report it
+            esac
+            echo "  attempt $attempt: got $code, waiting for $expected"
+            sleep 5
+          done
           case "$code" in
-            401|503) echo "Notebook refuses unauthenticated writes ($code)." ;;
-            *) echo "::error::POST /api/notes without a passphrase returned $code; it must refuse."; fail=1 ;;
+            "$expected")
+              if [ "$expected" = 401 ]; then
+                echo "Notebook is live and refuses unauthenticated writes (401)."
+              else
+                echo "Notebook has no passphrase configured and refuses writes (503)."
+              fi
+              ;;
+            2*) echo "::error::POST /api/notes without a passphrase returned $code. A public write endpoint must never accept anonymous writes."; fail=1 ;;
+            *) echo "::error::POST /api/notes returned $code, expected $expected. With NOTES_TOKEN set the Worker should answer 401; a 503 means the secret never reached it."; fail=1 ;;
           esac
 
           if [ "$fail" = 0 ]; then echo "Deployed origin serves assets and Worker routes correctly."; fi
