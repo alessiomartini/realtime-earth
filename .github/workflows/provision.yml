@@ -1,0 +1,66 @@
+name: Provision Cloudflare resources
+
+# Bindings need resource IDs, and resource IDs only exist once the resource
+# does. This creates the ones the Worker declares and prints their IDs so they
+# can be committed into wrangler.jsonc.
+#
+# Idempotent by design: it lists what already exists and creates only what is
+# missing, so re-running it after a config change never orphans a namespace or
+# silently makes a second one that nothing is bound to.
+#
+# Namespace IDs are not secrets — they are routine contents of a committed
+# wrangler config — so printing them here is safe. Nothing else is printed.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  provision:
+    name: Create missing KV namespaces
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Ensure the FEED_CACHE namespace exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          title="realtime-earth-FEED_CACHE"
+
+          existing=$(npx wrangler kv namespace list 2>/dev/null \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=s.match(/\[[\s\S]*\]/);if(!m){process.exit(0)}const ns=JSON.parse(m[0]).find(n=>n.title===process.argv[1]);if(ns)console.log(ns.id)})' "$title")
+
+          if [ -n "$existing" ]; then
+            echo "FEED_CACHE already exists."
+            id="$existing"
+          else
+            echo "Creating $title"
+            npx wrangler kv namespace create FEED_CACHE
+            id=$(npx wrangler kv namespace list 2>/dev/null \
+              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=s.match(/\[[\s\S]*\]/);if(!m){process.exit(1)}const ns=JSON.parse(m[0]).find(n=>n.title===process.argv[1]);if(!ns){process.exit(1)}console.log(ns.id)})' "$title")
+          fi
+
+          if [ -z "$id" ]; then
+            echo "::error::Could not determine the FEED_CACHE namespace id. Nothing was written to wrangler.jsonc."
+            exit 1
+          fi
+
+          echo "FEED_CACHE_ID=$id"
+          {
+            echo '## KV namespaces'
+            echo
+            echo "| binding | title | id |"
+            echo "| --- | --- | --- |"
+            echo "| FEED_CACHE | $title | \`$id\` |"
+            echo
+            echo 'Put this id in `wrangler.jsonc` under `kv_namespaces`.'
+          } >> "$GITHUB_STEP_SUMMARY"
