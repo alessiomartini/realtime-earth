@@ -14,5 +14,6 @@ import './binance-btc.js'; //        markets   — Lane A, WebSocket + klines hi
 import './usgs-earthquakes.js'; //   earth     — Lane A, poll + 24h history
 import './surface-temperature.js'; // earth    — Lane A, poll, hover readout
 import './wikipedia-changes.js'; //  noosphere — Lane A, SSE, no history available
+import './gdelt-news.js'; //         noosphere — Lane B, Worker proxy + KV, 1h history
 
 export { allModules, moduleById, moduleCount } from './registry.js';
