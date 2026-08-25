@@ -185,5 +185,73 @@ jobs:
             *) echo "::error::POST /api/notes returned $code, expected $expected. With NOTES_TOKEN set the Worker should answer 401; a 503 means the secret never reached it."; fail=1 ;;
           esac
 
+          # 5. Lane B. Two things are asserted here and one is only reported.
+          #
+          #    Asserted, because getting them wrong is our bug:
+          #      - the route always answers with a parseable envelope carrying
+          #        `lane: "B"`;
+          #      - a successful envelope always states BOTH when this Worker
+          #        fetched the payload and whether it came from cache. A Lane B
+          #        response without those is a cached value presented as a live
+          #        one, which is the exact failure the lane exists to avoid;
+          #      - the key-gated source refuses, by name, while unconfigured.
+          #        If /api/firms-fires ever answers 200 without a MAP_KEY set,
+          #        something is fabricating a fire map and the deploy must fail.
+          #
+          #    Reported, not asserted: whether GDELT itself answered. A source
+          #    being rate-limited is a finding about the world, not a reason to
+          #    refuse to ship — and the envelope says so honestly either way.
+          echo "--- Lane B ---"
+          # The KV cache is empty immediately after a deploy, so the first
+          # request does a cold fetch. GDELT rate-limits per origin, so give it
+          # a few spaced attempts before concluding it will not answer — one
+          # 429 measures our timing, not the source.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/gdelt.json -w '%{http_code}' --max-time 60 "$URL/api/gdelt-news")
+            [ "$code" = "200" ] && break
+            echo "  attempt $attempt: /api/gdelt-news returned $code"
+            sleep 10
+          done
+          python3 - "$code" <<'PY' || fail=1
+          import json, sys
+          code = sys.argv[1]
+          raw = open('/tmp/gdelt.json').read()
+          try:
+              body = json.loads(raw)
+          except Exception as exc:
+              print(f"::error::/api/gdelt-news returned unparseable JSON ({code}): {exc}\n{raw[:400]}")
+              sys.exit(1)
+          if body.get('lane') != 'B':
+              print(f"::error::/api/gdelt-news did not identify itself as Lane B: {raw[:400]}")
+              sys.exit(1)
+          if body.get('ok'):
+              missing = [k for k in ('fetchedAt', 'cached', 'refreshEverySeconds') if k not in body]
+              if missing:
+                  print(f"::error::Lane B envelope is missing {missing}. A proxied payload must always state its own age.")
+                  sys.exit(1)
+              print(f"GDELT answered. {body.get('count')} articles, fetched {body.get('fetchedAt')}, "
+                    f"cached={body.get('cached')}, age={body.get('fetchAgeSeconds')}s, "
+                    f"sourceTimestamp={body.get('sourceTimestamp')}, refreshError={body.get('refreshError')}")
+          else:
+              # The honest-failure shape. Still has to explain itself.
+              print(f"GDELT did NOT answer from Cloudflare (HTTP {code}). Reported reason: {body.get('message')}")
+              if not body.get('message'):
+                  print("::error::A failing Lane B route must say why. This one returned no reason.")
+                  sys.exit(1)
+          PY
+
+          code=$(curl -sS -o /tmp/firms.json -w '%{http_code}' --max-time 60 "$URL/api/firms-fires")
+          if [ "$code" = "200" ]; then
+            echo "::error::/api/firms-fires returned 200 with no MAP_KEY configured. A fire map with no data behind it must refuse, not render."
+            fail=1
+          else
+            grep -q 'FIRMS_MAP_KEY' /tmp/firms.json || {
+              echo "::error::/api/firms-fires refused but did not name the missing key. The reason has to be actionable."
+              cat /tmp/firms.json
+              fail=1
+            }
+            echo "FIRMS refuses while unconfigured (HTTP $code), and names the missing key."
+          fi
+
           if [ "$fail" = 0 ]; then echo "Deployed origin serves assets and Worker routes correctly."; fi
           exit $fail

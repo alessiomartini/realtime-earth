@@ -5,17 +5,17 @@
  *   - static assets (the Vite build) through the `ASSETS` binding, handled by
  *     the runtime before this script runs for every path except the ones
  *     listed in `run_worker_first` in wrangler.jsonc;
- *   - `/api/<module-id>` — Lane B proxy/cache routes (added in step 4);
+ *   - `/api/<module-id>` — Lane B proxy/cache routes;
  *   - `/ws/<module-id>`  — Lane C Durable Object relay routes (added in step 5).
  *
- * Step 1 implements only the deployment smoke test, `/api/health`, so that a
- * successful deploy can be confirmed to serve BOTH the static assets and a
- * Worker route from one origin before any real feed is wired up.
+ * It also runs on a schedule, refreshing the Lane B sources into KV, so that no
+ * visitor's page load is what makes a rate-limited source get hit.
  */
 
 import { handleNotes, type NotesEnv } from './notes.js';
+import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './proxy.js';
 
-export interface Env extends NotesEnv {
+export interface Env extends NotesEnv, ProxyEnv {
   ASSETS: Fetcher;
 }
 
@@ -61,10 +61,18 @@ export default {
         colo: !isLocal && typeof colo === 'string' ? colo : null,
         lanes: {
           A: 'direct from the browser — no Worker involvement',
-          B: 'not yet implemented (step 4)',
+          B: 'proxy + scheduled refresh into KV, served from /api/<module-id>',
           C: 'not yet implemented (step 5)',
         },
       });
+    }
+
+    // Lane B. Every proxied source is served from `/api/<module-id>` by the
+    // same handler, so the honesty of the envelope — fetch time, cache age,
+    // refresh errors — cannot drift between one source and the next.
+    if (url.pathname.startsWith('/api/')) {
+      const source = proxySourceById(url.pathname.slice('/api/'.length));
+      if (source !== undefined) return handleProxy(source, env);
     }
 
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) {
@@ -93,6 +101,26 @@ export default {
     );
   },
 
-  // Placeholder for Lane B (step 4): scheduled refresh of slow-moving sources
-  // into KV. Declared now so the shape of the Worker is visible from step 1.
+  /**
+   * Lane B's refresh loop.
+   *
+   * Each source declares its own cron and only the sources whose expression
+   * fired are refreshed. That is the difference between honouring a publisher's
+   * stated cadence and merely knowing it: a source that asks to be read hourly
+   * is read hourly, even when something else needs reading every fifteen
+   * minutes.
+   *
+   * Failures are stored, not thrown. A refresh that cannot reach its source has
+   * to end up on the page as a reason the reader can see, and an exception here
+   * would end up only in a log.
+   */
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      refreshForCron(event.cron, env).then((log) => {
+        // Observability is enabled for this Worker, so this line is the record
+        // of what each scheduled run actually managed to fetch.
+        console.log(`scheduled ${event.cron}: ${log.join(' | ')}`);
+      }),
+    );
+  },
 } satisfies ExportedHandler<Env>;

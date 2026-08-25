@@ -32,13 +32,36 @@
     }
   ],
 
+  // Lane B storage. The scheduled handler writes each proxied source here and
+  // the `/api/<module-id>` route reads it, so a rate-limited source is fetched
+  // once per interval no matter how many people are watching — and no
+  // visitor's page load is what makes us hit it.
+  "kv_namespaces": [
+    {
+      "binding": "FEED_CACHE",
+      "id": "f7c6d3a60d584135bc0e457a5077ff98"
+    }
+  ],
+
+  // Lane B's refresh schedule. Each source declares its own expression in
+  // worker/proxy.ts and the scheduled handler routes on `event.cron`, so these
+  // two lists must agree; `proxyCronExpressions()` is what they are derived
+  // from, and a unit test asserts every source has one.
+  //
+  //   4,19,34,49  GDELT — published on the quarter hour, read a few minutes
+  //               after it, because refreshing exactly on :00 reliably fetches
+  //               the previous window and presents it as the current one.
+  //   27          NASA FIRMS — hourly, which is well inside its transaction
+  //               limits and ahead of satellite overpass cadence.
+  "triggers": {
+    "crons": ["4,19,34,49 * * * *", "27 * * * *"]
+  },
+
   "observability": {
     "enabled": true
   }
 
   // Added in later steps, kept here as a map of what is coming:
-  //   "kv_namespaces"        - Lane B scheduled-handler storage (FIRMS, GDELT)
-  //   "triggers": { "crons" } - Lane B scheduled refresh
-  //   "durable_objects"       - Lane C AisRelay
-  //   "migrations"            - SQLite-backed DO class registration
+  //   "durable_objects" - Lane C AisRelay
+  //   "migrations"      - SQLite-backed DO class registration
 }
