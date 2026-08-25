@@ -118,7 +118,16 @@ const ENDPOINTS = [
 
   // --- Section 4: collective information flows ---
   { id: 'wikimedia-sse', kind: 'sse', expectedLane: 'A', url: 'https://stream.wikimedia.org/v2/stream/recentchange', note: 'Server-Sent Events, NOT WebSocket' },
-  { id: 'gdelt-doc', kind: 'rest', expectedLane: 'B', url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=climate&mode=artlist&format=json&maxrecords=5', note: 'no CORS — expect Lane B' },
+  { id: 'gdelt-doc', kind: 'rest', expectedLane: 'B', minGapMs: 6000, url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=climate&mode=artlist&format=json&maxrecords=5', note: 'no CORS — expect Lane B' },
+  // Candidate queries for the Lane B news module, probed rather than assumed.
+  // GDELT's DOC API requires a query, and which forms it accepts is not
+  // something to guess: an operator-only query is either supported or answered
+  // with an error page, and the module's whole shape depends on which. The
+  // long samples are so the JSON field names come back as evidence instead of
+  // being remembered — `seendate`'s exact format decides the parser.
+  { id: 'gdelt-artlist-lang', kind: 'rest', expectedLane: 'B', discovery: true, sampleChars: 1200, minGapMs: 6000, url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang%3Aeng&mode=artlist&format=json&maxrecords=10&sort=datedesc&timespan=30min', note: 'DISCOVERY: operator-only query — the broadest honest "what is the world publishing" filter' },
+  { id: 'gdelt-artlist-broad', kind: 'rest', expectedLane: 'B', discovery: true, sampleChars: 1200, minGapMs: 6000, url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=%28world%20OR%20news%29&mode=artlist&format=json&maxrecords=10&sort=datedesc&timespan=30min', note: 'DISCOVERY: keyword fallback if operator-only queries are rejected' },
+  { id: 'gdelt-timeline-vol', kind: 'rest', expectedLane: 'B', discovery: true, sampleChars: 1200, minGapMs: 6000, url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang%3Aeng&mode=timelinevolraw&format=json&timespan=1d', note: 'DISCOVERY: article counts per 15-min bucket — real published history for the chart' },
   { id: 'mempool-ws', kind: 'ws', expectedLane: 'A', url: 'wss://mempool.space/api/v1/ws', note: 'unconfirmed tx, fee bands, blocks' },
   { id: 'eth-rpc-publicnode', kind: 'rest', method: 'POST', body: '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}', expectedLane: 'A', url: 'https://ethereum-rpc.publicnode.com', note: 'block number, base fee, gas used' },
 
@@ -276,9 +285,22 @@ function checkWebSocket(endpoint) {
   });
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const results = [];
+let lastProbeEndedAt = 0;
 for (const endpoint of selected) {
+  // Sources that publish a cadence limit get it honoured. GDELT documents one
+  // request every five seconds, and probing it four times in a row would
+  // produce three 429s that say nothing about GDELT and everything about this
+  // script. A report has to measure the source, not the prober.
+  if (endpoint.minGapMs) {
+    const waited = Date.now() - lastProbeEndedAt;
+    if (waited < endpoint.minGapMs) await sleep(endpoint.minGapMs - waited);
+  }
+
   const outcome = endpoint.kind === 'ws' ? await checkWebSocket(endpoint) : await checkHttp(endpoint);
+  lastProbeEndedAt = Date.now();
 
   // Lane A requires keyless + CORS-permitted. Anything else must be proxied.
   //
