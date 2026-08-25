@@ -29,6 +29,14 @@ import { el, formatAge } from './../ui/dom.js';
  *   - the poll that put it on screen is not shown at all, because it says
  *     nothing about the news.
  *
+ * AND HOW FAR BEHIND THEY ARE. Two production fetches, seven hours apart, both
+ * returned a newest `seendate` sitting exactly on a half-hour boundary and 35
+ * to 45 minutes behind the moment of the fetch. GDELT's index is quantised and
+ * lags real time by roughly that much — so "the last hour" is really a window
+ * that ended about half an hour ago. Nothing here corrects for that or hides
+ * it: the page states the age of the newest article by GDELT's own clock, and
+ * that number is how a reader sees the lag for themselves.
+ *
  * The opening payload is GDELT's last hour, which is real published history and
  * is counted as such: those articles existed before the page did, and folding
  * them into "arrived while you were watching" would inflate the one number the
@@ -96,7 +104,7 @@ class GdeltNews extends ProxyModule<GdeltPayload> {
       // short enough that a feed which quietly stopped updating says so.
       staleAfterMs: 45 * 60_000,
       historyNote:
-        'Opens with the last hour of articles GDELT has already indexed — real published history, counted separately from what arrives afterwards.',
+        'Opens with the last hour of articles GDELT has already indexed — real published history, counted separately from what arrives afterwards. GDELT’s index runs roughly 35–45 minutes behind real time, so that window ends about half an hour ago; the age shown above is by GDELT’s own clock and reflects it.',
       pollMs: POLL_MS,
       source: {
         name: 'The GDELT Project — DOC 2.0 API',
