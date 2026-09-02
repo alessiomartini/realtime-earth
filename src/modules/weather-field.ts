@@ -210,6 +210,8 @@ class WeatherField extends BaseModule {
   #hoverPoint: MapPoint | null = null;
   #exact: { point: MapPoint; cell: MapPoint; elevation: number | null; time: number | null; values: Map<string, number> } | null = null;
   #exactCache = new Map<string, Sample>();
+  /** The view whose spacing has already been corrected once. Stops a loop. */
+  #correctedView: string | null = null;
 
   constructor() {
     super({
@@ -340,17 +342,34 @@ class WeatherField extends BaseModule {
   /**
    * Choose the sample spacing for the current view.
    *
-   * Two constraints, both hard. The number of samples is capped so a refresh
-   * stays affordable, and the spacing is never finer than `FLOOR_SPACING_DEG` —
-   * because sampling inside a single model cell returns the same value twice
-   * and drawing it as two cells would be inventing detail.
+   * Three constraints, all hard.
+   *
+   * The sample count is capped, so one refresh stays affordable against a free
+   * API being paid for out of the visitor's own quota.
+   *
+   * There is an absolute floor, because no view justifies asking for metre-scale
+   * detail.
+   *
+   * And — the one that matters most — the spacing is never finer than the
+   * model's OWN grid, measured on the last refresh. Two requests 200 m apart
+   * inside a single 2 km cell return the same number twice; drawing them as two
+   * cells would manufacture detail that does not exist in the data. When the
+   * view is zoomed past what the model resolves, the honest response is fewer,
+   * larger cells, not more of them saying the same thing.
    */
   #spacingFor(map: WorldMap): number {
     const spanLat = map.spanLat;
     const spanLon = map.spanLon;
     // Solve rows * cols ≈ TARGET_SAMPLES with rows/cols matching the aspect.
     const spacing = Math.sqrt((spanLat * spanLon) / TARGET_SAMPLES);
-    return Math.max(FLOOR_SPACING_DEG, spacing);
+
+    // The measured cell size from the previous refresh, in degrees of latitude.
+    // Only trusted when it was actually measured; on the first fetch there is
+    // nothing to go on and the floor alone applies.
+    const measuredKm = this.#grid?.measuredCellKm ?? null;
+    const modelFloorDeg = measuredKm === null ? 0 : measuredKm / 111.32;
+
+    return Math.max(FLOOR_SPACING_DEG, modelFloorDeg, spacing);
   }
 
   async #fetchGrid(): Promise<void> {
@@ -441,10 +460,27 @@ class WeatherField extends BaseModule {
       offsets.sort((a, b) => a - b);
       const median = offsets[Math.floor(offsets.length / 2)] ?? 0;
 
-      this.#grid = { samples, spacingDeg: spacing, measuredCellKm: median > 0 ? median * 2 : null };
+      const measuredCellKm = median > 0 ? median * 2 : null;
+      this.#grid = { samples, spacingDeg: spacing, measuredCellKm };
       this.#exactCache.clear();
       this.markReceived(newestTime);
       this.#draw();
+
+      // The model's resolution can only be measured after asking, so the first
+      // fetch of a new region may well have sampled finer than the model
+      // resolves — which shows up as neighbouring cells repeating one value.
+      // Now that it IS measured, re-sample once at the honest spacing.
+      //
+      // Guarded by view identity so this can correct a view exactly once and
+      // can never become a loop.
+      const viewKey = `${view.west.toFixed(3)},${view.south.toFixed(3)},${view.east.toFixed(3)},${view.north.toFixed(3)}`;
+      if (measuredCellKm !== null && this.#correctedView !== viewKey) {
+        const modelFloorDeg = measuredCellKm / 111.32;
+        if (spacing < modelFloorDeg * 0.8) {
+          this.#correctedView = viewKey;
+          this.#scheduleGridFetch(0);
+        }
+      }
     } catch (error) {
       if ((error as Error).name === 'AbortError') return;
       this.fail(error instanceof Error ? error.message : 'the request failed');
@@ -607,7 +643,14 @@ class WeatherField extends BaseModule {
         // for — not read off a documentation page.
         parts.push(`model grid measured at about ${grid.measuredCellKm.toFixed(1)} km here`);
       }
-      parts.push('zoom in for a finer sample');
+      if (grid?.measuredCellKm != null && grid.spacingDeg * 111.32 <= grid.measuredCellKm * 1.05) {
+        // The view is zoomed past what the model resolves. Saying so is the
+        // difference between "this map has stopped improving" and "this model
+        // has no more detail to give".
+        parts.push('at the model’s own resolution — zooming further will not add detail it does not have');
+      } else {
+        parts.push('zoom in for a finer sample');
+      }
       const coastline = map.coastlineNote;
       if (coastline !== null) parts.push(coastline);
       this.#resolutionLine.textContent = parts.join(' · ');
