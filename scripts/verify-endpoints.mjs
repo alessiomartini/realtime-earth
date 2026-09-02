@@ -143,6 +143,39 @@ const ENDPOINTS = [
   // grid affordable. This is numerical model output, not a thermometer at that
   // spot, and the module has to say so.
   { id: 'open-meteo-grid', kind: 'rest', expectedLane: 'A', sampleChars: 400, discovery: true, url: 'https://api.open-meteo.com/v1/forecast?latitude=52.5,48.9,41.9&longitude=13.4,2.3,12.5&current=temperature_2m', note: 'multi-point current temperature, keyless' },
+
+  // --- Meteored, requested as a replacement for the temperature map --------
+  // Meteored's developer product is api.tiempo.com and it requires a
+  // registered affiliate key. Probed WITHOUT one on purpose: the refusal is the
+  // evidence, and what it says decides whether this can be wired at all.
+  //
+  // The second thing being checked here is shape, not just access. Meteored's
+  // documented product returns a forecast for a named locality, which is a very
+  // different thing from the gridded field a world map needs. A source can be
+  // perfectly alive and still be the wrong instrument.
+  { id: 'meteored-api', kind: 'rest', expectedLane: 'B', needsKey: true, discovery: true, sampleChars: 700, url: 'https://api.tiempo.com/index.php?api_lang=en&localidad=3117735&affiliate_id=MAP_KEY_PLACEHOLDER', note: 'Meteored developer API; registration required — the refusal text is the finding' },
+
+  // --- high-resolution weather, to replace the 20x15 degree grid -----------
+  // The coarse grid was a request-budget decision, not a limit of the source.
+  // These probe what Open-Meteo will actually answer at km scale and how much
+  // can be asked for at once, since that is what sets the real resolution.
+  { id: 'openmeteo-highres-models', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1600, url: 'https://api.open-meteo.com/v1/forecast?latitude=46.8&longitude=8.2&current=temperature_2m&models=meteoswiss_icon_ch1,icon_d2,arome_france_hd,ukmo_uk_deterministic_2km,italia_meteo_arpae_icon_2i,ncep_hrrr_conus', note: 'DISCOVERY: which km-scale models answer, and how they are named in the response' },
+  { id: 'openmeteo-rich-vars', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 2000, url: 'https://api.open-meteo.com/v1/forecast?latitude=45.5&longitude=9.2&current=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,surface_pressure,pressure_msl,wind_speed_10m,wind_speed_80m,wind_speed_120m,wind_speed_180m,wind_direction_10m,wind_gusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation,cloud_cover,cape,visibility,precipitation,weather_code,is_day', note: 'DISCOVERY: the full current-variable set the map can offer as layers (note 5)' },
+  { id: 'openmeteo-pressure-levels', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 1200, url: 'https://api.open-meteo.com/v1/forecast?latitude=45.5&longitude=9.2&hourly=temperature_850hPa,wind_speed_850hPa,wind_speed_250hPa,geopotential_height_500hPa&forecast_days=1&models=best_match', note: 'DISCOVERY: wind and temperature aloft — the "different altitudes" the note asks for' },
+  { id: 'openmeteo-elevation-cell', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 700, url: 'https://api.open-meteo.com/v1/forecast?latitude=45.9764&longitude=7.6586&current=temperature_2m&cell_selection=nearest&models=best_match', note: 'DISCOVERY: does the response report the model cell’s own elevation and coordinates' },
+
+  // --- real-time lightning -------------------------------------------------
+  // Blitzortung is a volunteer detection network. Its data policy requires a
+  // third-party app to serve its own clients from its own servers, so this is
+  // Lane C by the SOURCE'S TERMS rather than for any technical reason —
+  // `policyLane` records that, so the report does not call it a mismatch when
+  // the handshake succeeds from a browser.
+  //
+  // A handshake alone proves nothing here: the stream is silent until it is
+  // subscribed to. So this probe sends the subscription and waits for a real
+  // frame, and the sample is what decides the parser.
+  { id: 'blitzortung-ws', kind: 'ws', expectedLane: 'C', policyLane: 'C', subscribe: '{"time":0}', awaitMessage: true, sampleChars: 700, url: 'wss://ws1.blitzortung.org:3000/', note: 'real-time strikes; their policy requires serving our own clients from our own server' },
+  { id: 'blitzortung-ws-alt', kind: 'ws', expectedLane: 'C', policyLane: 'C', subscribe: '{"time":0}', awaitMessage: true, sampleChars: 700, url: 'wss://ws7.blitzortung.org:3000/', note: 'second server, so one host being down is distinguishable from the network being gone' },
 ];
 
 const args = process.argv.slice(2);
@@ -253,10 +286,17 @@ function checkWebSocket(endpoint) {
       resolve({ ms: Date.now() - started, cors: 'n/a', corsOk: true, contentType: '', ...result });
     };
 
-    const timer = setTimeout(
-      () => finish({ ok: false, status: 'TIMEOUT', sample: `no open event within ${TIMEOUT_MS}ms` }),
-      TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => {
+      // Distinguish "never connected" from "connected and then said nothing".
+      // They have completely different causes and completely different fixes,
+      // and reporting both as TIMEOUT would hide which one happened.
+      const opened = socket && socket.readyState === WebSocket.OPEN;
+      finish(
+        opened
+          ? { ok: false, status: 'SILENT', sample: `handshake accepted, but no frame within ${TIMEOUT_MS}ms` }
+          : { ok: false, status: 'TIMEOUT', sample: `no open event within ${TIMEOUT_MS}ms` },
+      );
+    }, TIMEOUT_MS);
 
     try {
       socket = new WebSocket(endpoint.url);
@@ -266,11 +306,37 @@ function checkWebSocket(endpoint) {
     }
 
     socket.addEventListener('open', () => {
-      // A successful handshake is all this script claims. Whether the stream
-      // then delivers data can depend on a subscription message and a key, so
-      // that is verified per-module, not here.
-      finish({ ok: true, status: 'OPEN', sample: 'handshake accepted' });
+      // Some streams are silent until subscribed to, and for those a handshake
+      // proves only that a port is listening. Where a subscription is declared,
+      // this sends it and waits for a real frame before claiming anything —
+      // otherwise "OPEN" would be recorded for a source that never delivers.
+      if (endpoint.subscribe) {
+        try {
+          socket.send(endpoint.subscribe);
+        } catch (error) {
+          finish({ ok: false, status: 'ERR', sample: `subscribe failed: ${String(error?.message ?? error)}` });
+          return;
+        }
+      }
+      if (!endpoint.awaitMessage) {
+        finish({ ok: true, status: 'OPEN', sample: 'handshake accepted' });
+      }
+      // Otherwise wait for the message listener below, or the timeout.
     });
+
+    if (endpoint.awaitMessage) {
+      socket.addEventListener('message', (event) => {
+        const raw =
+          typeof event.data === 'string'
+            ? event.data
+            : `[binary frame, ${event.data?.byteLength ?? event.data?.length ?? '?'} bytes]`;
+        finish({
+          ok: true,
+          status: 'DATA',
+          sample: raw.slice(0, endpoint.sampleChars ?? 300).replace(/\s+/g, ' '),
+        });
+      });
+    }
     socket.addEventListener('error', () => {
       finish({ ok: false, status: 'ERR', sample: 'handshake failed' });
     });
@@ -322,10 +388,19 @@ for (const endpoint of selected) {
   const reachable = outcome.ok || gated || throttled;
 
   let laneEvidence;
-  if (endpoint.kind === 'ws') {
-    laneEvidence = reachable ? (endpoint.needsKey ? 'C' : 'A') : '?';
+  if (!reachable) {
+    laneEvidence = '?';
+  } else if (endpoint.policyLane) {
+    // Some lanes are decided by the source's TERMS, not by what its wire
+    // protocol permits. Blitzortung's handshake succeeds from a browser and its
+    // data policy still requires a third-party app to serve its own clients
+    // from its own servers. Reading only the technical evidence there would
+    // conclude "Lane A" and be wrong in the way that gets a project blocked.
+    laneEvidence = endpoint.policyLane;
+  } else if (endpoint.kind === 'ws') {
+    laneEvidence = endpoint.needsKey ? 'C' : 'A';
   } else {
-    laneEvidence = reachable ? (outcome.corsOk && !endpoint.needsKey ? 'A' : 'B') : '?';
+    laneEvidence = outcome.corsOk && !endpoint.needsKey ? 'A' : 'B';
   }
 
   results.push({
