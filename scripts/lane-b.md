@@ -99,3 +99,58 @@ Two production fetches seven hours apart both returned a newest `seendate` on an
 exact half-hour boundary, 35 and 45 minutes behind the fetch. GDELT's index is
 quantised and runs roughly that far behind real time. Nothing corrects for it;
 the page shows the age by GDELT's own clock and says so in words.
+
+---
+
+# Lane C — relayed feeds
+
+`/ws/<module-id>`, backed by a Durable Object. One upstream connection for the
+whole site, however many people are watching.
+
+## Why a Durable Object and not a Worker
+
+A Worker is instantiated per request, so a hundred visitors would open a hundred
+upstream connections — exactly what this lane exists to prevent. A Durable
+Object is a single addressable instance, so every client meets at one place and
+shares one socket. `idFromName('blitzortung')` is the fixed name that makes that
+true.
+
+The upstream socket opens when the first viewer arrives and closes when the last
+one leaves. Streaming from a volunteer-run network to an empty room is not
+something to do by accident.
+
+## What the relay must tell its clients
+
+Our socket being open says nothing about whether the Worker can reach the
+source. Without a status frame, a relay that cannot connect looks exactly like a
+quiet night — so the relay sends `{type:'status', upstream, reason}` on connect
+and on every change, and the module puts itself into the error state with the
+source's own reason.
+
+## Sources
+
+| id | source | route | state |
+| --- | --- | --- | --- |
+| `lightning-strikes` | Blitzortung.org | `/ws/lightning-strikes` | live |
+
+## What verification settled about Blitzortung
+
+Four things, three of which would have shipped as silent bugs:
+
+1. **Unreachable from GitHub runners.** Every probe failed, including plain
+   HTTPS. That is not evidence about the source — GDELT did the same thing
+   immediately before working perfectly from Cloudflare.
+2. **Port 3000 is unreachable from Cloudflare; port 443 answers `HTTP/1.1 101`.**
+   A Worker's `fetch` cannot reach 3000 but can reach 443, so the relay uses the
+   ordinary WebSocket upgrade instead of hand-rolled framing over a raw socket.
+3. **The subscription is `{"a":111}`.** The `{"time":0}` used by a published
+   client library gets a clean upgrade and then permanent silence — a feed that
+   connects flawlessly and never shows a strike.
+4. **Frames are LZW-compressed and the timestamp is nanoseconds.** A raw frame is
+   not JSON. And `1788366104013598000` read as milliseconds is fifty-six million
+   years from now, while still *looking* like working code: dots appear, the
+   counter climbs. Hence the range check, tested from both sides, with the real
+   frame kept as a fixture.
+
+The general rule this keeps proving: **a handshake proves a door opens, not what
+comes through it.** Probes wait for a frame.
