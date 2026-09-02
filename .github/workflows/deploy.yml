@@ -253,5 +253,36 @@ jobs:
             echo "FIRMS refuses while unconfigured (HTTP $code), and names the missing key."
           fi
 
+          # 6. Lane C. A Durable Object that fails to instantiate — a missing
+          #    binding, an unregistered class, a migration that did not apply —
+          #    shows up as a 500 here. Without this check that would deploy
+          #    green and only surface as a feed that never connects.
+          #
+          #    Asked WITHOUT an upgrade header on purpose: the relay must refuse
+          #    a plain GET with 426 and say why. Reaching that refusal proves
+          #    the route resolved and the object was constructed.
+          echo "--- Lane C ---"
+          code=$(curl -sS -o /tmp/relay.json -w '%{http_code}' --max-time 30 "$URL/ws/lightning-strikes")
+          case "$code" in
+            426)
+              grep -q 'expected_websocket' /tmp/relay.json || {
+                echo "::error::/ws/lightning-strikes refused a plain GET but did not say why."
+                cat /tmp/relay.json
+                fail=1
+              }
+              echo "Lightning relay is routed and instantiates (426 to a non-WebSocket request)."
+              ;;
+            5*)
+              echo "::error::/ws/lightning-strikes returned $code. The Durable Object did not instantiate — check the binding and migration."
+              cat /tmp/relay.json
+              fail=1
+              ;;
+            *)
+              echo "::error::/ws/lightning-strikes returned $code, expected 426."
+              cat /tmp/relay.json
+              fail=1
+              ;;
+          esac
+
           if [ "$fail" = 0 ]; then echo "Deployed origin serves assets and Worker routes correctly."; fi
           exit $fail
