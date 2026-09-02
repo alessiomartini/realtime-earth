@@ -50,16 +50,54 @@ verification showed can do everything the request was really asking for:
 The coarse blocks were never Open-Meteo's limit. They were a fixed global grid
 of 216 points, and the fix was to make the grid follow the view.
 
-## To wire Meteored anyway
+## What is now built
 
-It is a small job once a key exists, and worth doing if its own model is wanted
-as a second opinion for point forecasts:
+Everything except the key.
+
+- **`/api/meteored-conditions`** is a registered Lane B source, refreshed twice
+  an hour by the scheduled handler. Without a key it answers 503 **naming
+  `METEORED_AFFILIATE_ID`**, and the Worker does not call tiempo.com at all.
+- **`worker/xml.ts`** is a small XML reader, because Workers have no
+  `DOMParser`.
+- **The tile is live on the site**, showing the honest refusal until a key
+  exists.
+- **`/api/_diag/meteored`** returns the raw XML and a census of every element in
+  it, so the real schema can be read off a real response.
+
+### The parser is deliberately shape-tolerant
+
+Meteored's element names have never been observed here — every keyless request
+is refused — so a parser written against remembered names would be a guess
+wearing the clothes of a fact. Instead the shaper tries several candidate names
+per field, **records which one matched**, and carries a census of every element
+the response contained.
+
+A wrong guess therefore appears on the page as *"None of the fields this page
+looks for were found. The response did contain: …"* rather than as an empty
+panel. That is the difference between "no reading" and "we were looking for the
+wrong word", and it is covered by a test that was confirmed able to fail.
+
+### The forecast is deliberately not shown
+
+Meteored's response contains a multi-day forecast. The module shows only the
+current values.
+
+A forecast is a statement about a future that has not happened. Putting predicted
+temperatures on the same page as received earthquake times, under the same "as
+received" banner, would quietly redefine what that banner means. So the forecast
+days are left out, and the page says they were left out rather than pretending
+the response did not contain them.
+
+## To finish it
 
 1. Register at <https://www.meteored.com/> / <https://www.tiempo.com/> and get
-   the account **activated** — the refusal above distinguishes "not registered"
-   from "not activated".
-2. `wrangler secret put METEORED_AFFILIATE_ID`.
-3. Add a source to `SOURCES` in `worker/proxy.ts` with a `buildUrl` that refuses
-   when the secret is absent, and a `shape()` that parses the XML.
+   the account **activated** — the refusal distinguishes "not registered" from
+   "not activated", so both steps matter.
+2. `npx wrangler secret put METEORED_AFFILIATE_ID`
+   (optionally also `METEORED_LOCALITY`; it defaults to Madrid, `3117735`).
+3. Run the **Diagnose a source from production** workflow and read
+   `/api/_diag/meteored`. That prints the real element names.
+4. Correct `METEORED_FIELDS` in `worker/proxy.ts` from that evidence.
 
-It would be a locality-forecast feed, not a replacement for the field map.
+Step 3 is the one that matters. Until a real response has been seen, the field
+names in the code are candidates, not facts, and the code says so.

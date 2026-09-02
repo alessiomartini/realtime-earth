@@ -35,11 +35,17 @@
  * `sourceTimestamp`, never count a re-served cache entry as a new arrival.
  */
 
+import { elementCensus, findFirst, firstValueOf, parseXml } from './xml.js';
+
 export interface ProxyEnv {
   /** Lane B storage. Written by the scheduled handler, read by the route. */
   FEED_CACHE?: KVNamespace;
   /** NASA FIRMS map key. Server-side only — it must never appear in a bundle. */
   FIRMS_MAP_KEY?: string;
+  /** Meteored (api.tiempo.com) affiliate id. Server-side only, same rule. */
+  METEORED_AFFILIATE_ID?: string;
+  /** Which Meteored locality to read. Optional; a default is used when unset. */
+  METEORED_LOCALITY?: string;
 }
 
 /** What the scheduled handler stores, and what the route serves back. */
@@ -231,6 +237,112 @@ export function shapeFirms(body: string): Shaped {
   return { data: { detections }, sourceTimestamp: newest, count: detections.length };
 }
 
+/**
+ * Meteored, via its developer API at api.tiempo.com.
+ *
+ * WHAT THE GATE FOUND, BEFORE ANY OF THIS WAS WRITTEN. Probed without a key,
+ * the API answered 200 with:
+ *
+ *   <report><error>You are not a registered user of the API from tiempo.com
+ *   or your account has not been activated.</error></report>
+ *
+ * Three facts in one response: the host is up and working (this is a refusal,
+ * not an outage), it requires a registered AND activated account with no
+ * keyless path, and it sends no `access-control-allow-origin` — so even with a
+ * key a browser could not read it. Lane B, with the key as a Worker secret.
+ *
+ * WHY THIS IS A FORECAST FEED AND WHAT THAT COSTS. Meteored's product is a
+ * forecast for a named locality. That is a different instrument from the
+ * gridded field the weather map needs, and it is also in tension with this
+ * site's thesis: a forecast is a prediction about the future, not something
+ * that has been measured. So this module shows Meteored's CURRENT observed
+ * values and deliberately does not plot its forecast days. They are in the
+ * response, they are honest work by a real forecasting outfit, and they are not
+ * what this site is for.
+ *
+ * WHY THE PARSER IS SHAPE-TOLERANT. The exact element names have never been
+ * observed here, because every request without a key is refused. Rather than
+ * write a parser against remembered names and have it report an empty document
+ * when it guesses wrong, it tries several candidate names per field, records
+ * WHICH one matched, and reports the full element census of whatever arrived.
+ * A wrong guess therefore surfaces as "these fields were not found, here is
+ * what the response actually contained" — which is a finding, not a silence.
+ */
+const METEORED_DEFAULT_LOCALITY = '3117735'; // Madrid, in Meteored's own id space.
+
+function meteoredUrl(key: string, locality: string): string {
+  return `https://api.tiempo.com/index.php?api_lang=en&localidad=${encodeURIComponent(locality)}&affiliate_id=${encodeURIComponent(key)}`;
+}
+
+/** Candidate element names per field, most likely first. Which one matched is reported. */
+const METEORED_FIELDS: ReadonlyArray<{ key: string; label: string; unit: string; candidates: readonly string[] }> = [
+  { key: 'temperature', label: 'Temperature', unit: '°C', candidates: ['temperatura_actual', 'temperature', 'temp', 'temperatura'] },
+  { key: 'humidity', label: 'Relative humidity', unit: '%', candidates: ['humedad_relativa', 'humidity', 'humedad'] },
+  { key: 'pressure', label: 'Pressure', unit: 'hPa', candidates: ['presion', 'pressure'] },
+  { key: 'wind_speed', label: 'Wind speed', unit: 'km/h', candidates: ['viento', 'wind_speed', 'wind'] },
+  { key: 'wind_direction', label: 'Wind direction', unit: '', candidates: ['direccion_viento', 'wind_direction'] },
+  { key: 'description', label: 'Conditions', unit: '', candidates: ['descripcion', 'description', 'symbol_description'] },
+];
+
+export function shapeMeteored(body: string): Shaped {
+  const root = parseXml(body);
+  if (root === null) {
+    // Not "no data" — the body was not XML at all, which is a different problem
+    // with a different cause.
+    return { data: { error: 'The response was not XML.', body: body.slice(0, 300) }, sourceTimestamp: null, count: 0 };
+  }
+
+  // The API reports its own refusals inside a 200 response, so a body that
+  // parsed fine can still be an error. Surfacing it verbatim is the difference
+  // between "no readings" and "your account is not activated".
+  const errorNode = findFirst(root, 'error');
+  if (errorNode !== null && errorNode.text !== '') {
+    return {
+      data: { error: errorNode.text, census: elementCensus(root) },
+      sourceTimestamp: null,
+      count: 0,
+    };
+  }
+
+  const readings: Array<{ key: string; label: string; unit: string; value: string; matchedElement: string }> = [];
+  const missing: string[] = [];
+  for (const field of METEORED_FIELDS) {
+    const found = firstValueOf(root, field.candidates);
+    if (found === null) {
+      missing.push(field.key);
+      continue;
+    }
+    readings.push({
+      key: field.key,
+      label: field.label,
+      unit: field.unit,
+      value: found.value,
+      // Which element name actually carried it. This is how a guessed schema
+      // gets corrected from evidence instead of from memory.
+      matchedElement: found.name,
+    });
+  }
+
+  // Meteored's own timestamp, if it publishes one. Never our fetch time.
+  const stamp = firstValueOf(root, ['fecha', 'date', 'datetime', 'timestamp', 'updated']);
+  const parsed = stamp === null ? Number.NaN : Date.parse(stamp.value);
+  const sourceTimestamp = Number.isFinite(parsed) ? parsed : null;
+
+  return {
+    data: {
+      readings,
+      missing,
+      // The full census travels with every response so an unrecognised schema
+      // describes itself rather than reading as an empty one.
+      census: elementCensus(root),
+      timestampElement: stamp?.name ?? null,
+      timestampRaw: stamp?.value ?? null,
+    },
+    sourceTimestamp,
+    count: readings.length,
+  };
+}
+
 const SOURCES: readonly ProxySource[] = [
   {
     id: 'gdelt-news',
@@ -261,6 +373,28 @@ const SOURCES: readonly ProxySource[] = [
       return { url: `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/${FIRMS_DATASET}/world/1` };
     },
     shape: shapeFirms,
+  },
+  {
+    id: 'meteored-conditions',
+    attribution: 'Meteored (tiempo.com)',
+    // No key in the URL that gets published. See the registry test.
+    publicUrl: 'https://api.tiempo.com/index.php?api_lang=en&localidad=<LOCALITY>&affiliate_id=<AFFILIATE_ID>',
+    // Meteored publishes on a human cadence, not a machine one, and its free
+    // tier is metered per account. Twice an hour is generous for a locality
+    // observation and nowhere near any documented limit.
+    cron: '11,41 * * * *',
+    refreshEverySeconds: 1800,
+    buildUrl: (env) => {
+      const key = env.METEORED_AFFILIATE_ID;
+      if (key === undefined || key === '') {
+        return {
+          missing:
+            'METEORED_AFFILIATE_ID is not configured on this deployment. Meteored’s API requires a registered and activated account at tiempo.com — it answers every keyless request with “You are not a registered user”. Until a key is set this feed has no data and says so.',
+        };
+      }
+      return { url: meteoredUrl(key, env.METEORED_LOCALITY ?? METEORED_DEFAULT_LOCALITY) };
+    },
+    shape: shapeMeteored,
   },
 ];
 

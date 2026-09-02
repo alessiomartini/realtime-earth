@@ -15,6 +15,7 @@
 import { handleNotes, type NotesEnv } from './notes.js';
 import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './proxy.js';
 import { handleBlitzortungProbe } from './blitzortung-probe.js';
+import { handleMeteoredProbe } from './meteored-probe.js';
 import { handleLightningSocket, LightningRelay, type RelayEnv } from './lightning-relay.js';
 
 // The Durable Object class has to be exported from the Worker's entrypoint for
@@ -79,6 +80,13 @@ export default {
     // here instead. Nothing reads it as data.
     if (url.pathname === '/api/_diag/blitzortung') {
       return handleBlitzortungProbe();
+    }
+
+    // Reveals Meteored's real element names once a key exists, so the shaper's
+    // candidate lists can be corrected from a real response rather than guessed
+    // at a second time. Read-only, and never displayed as data.
+    if (url.pathname === '/api/_diag/meteored') {
+      return handleMeteoredProbe(env);
     }
 
     // Lane C. One relay, one upstream connection, however many people are

@@ -240,18 +240,47 @@ jobs:
                   sys.exit(1)
           PY
 
-          code=$(curl -sS -o /tmp/firms.json -w '%{http_code}' --max-time 60 "$URL/api/firms-fires")
-          if [ "$code" = "200" ]; then
-            echo "::error::/api/firms-fires returned 200 with no MAP_KEY configured. A fire map with no data behind it must refuse, not render."
-            fail=1
-          else
-            grep -q 'FIRMS_MAP_KEY' /tmp/firms.json || {
-              echo "::error::/api/firms-fires refused but did not name the missing key. The reason has to be actionable."
-              cat /tmp/firms.json
-              fail=1
-            }
-            echo "FIRMS refuses while unconfigured (HTTP $code), and names the missing key."
-          fi
+          # Key-gated sources. Each must either serve real data (key present) or
+          # refuse BY NAME (key absent). What must never happen is a 200 with
+          # nothing behind it, which would render as "no fires" or "no weather"
+          # and read as an observation.
+          #
+          # The env-var name in the refusal is the point: "unavailable" tells a
+          # reader nothing they can act on, "METEORED_AFFILIATE_ID is not
+          # configured" tells them exactly what to do.
+          check_gated () {
+            route="$1"; secret_name="$2"; label="$3"
+            code=$(curl -sS -o /tmp/gated.json -w '%{http_code}' --max-time 60 "$URL$route")
+            case "$code" in
+              200)
+                # A 200 is only correct if a key really is configured. The
+                # envelope has to prove it is serving data, not an empty shell.
+                if grep -q '"ok": true' /tmp/gated.json; then
+                  echo "$label is configured and serving data (200)."
+                else
+                  echo "::error::$route returned 200 but not an ok envelope."
+                  cat /tmp/gated.json
+                  fail=1
+                fi
+                ;;
+              503)
+                grep -q "$secret_name" /tmp/gated.json || {
+                  echo "::error::$route refused but did not name $secret_name. The reason has to be actionable."
+                  cat /tmp/gated.json
+                  fail=1
+                }
+                echo "$label refuses while unconfigured (503), and names $secret_name."
+                ;;
+              *)
+                echo "::error::$route returned $code, expected 200 or 503."
+                cat /tmp/gated.json
+                fail=1
+                ;;
+            esac
+          }
+
+          check_gated /api/firms-fires FIRMS_MAP_KEY FIRMS
+          check_gated /api/meteored-conditions METEORED_AFFILIATE_ID Meteored
 
           # 6. Lane C. A Durable Object that fails to instantiate — a missing
           #    binding, an unregistered class, a migration that did not apply —

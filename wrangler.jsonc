@@ -53,8 +53,10 @@
   //               the previous window and presents it as the current one.
   //   27          NASA FIRMS — hourly, which is well inside its transaction
   //               limits and ahead of satellite overpass cadence.
+  //   11,41       Meteored — twice an hour, a generous cadence for a locality
+  //               observation and far inside its metered free tier.
   "triggers": {
-    "crons": ["4,19,34,49 * * * *", "27 * * * *"]
+    "crons": ["4,19,34,49 * * * *", "27 * * * *", "11,41 * * * *"]
   },
 
   // Lane C. A Durable Object rather than a plain Worker because there has to

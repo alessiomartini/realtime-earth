@@ -1347,3 +1347,11 @@ a.tape__title:hover {
     bottom: 0.5rem;
   }
 }
+
+/* A readout that lists whatever fields a response actually carried, rather than
+   a fixed set. Wraps, because the number of them is not known in advance. */
+.readout--wide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+}

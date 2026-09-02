@@ -129,6 +129,7 @@ describe('the source registry', () => {
   it('resolves the routes the Worker serves', () => {
     expect(proxySourceById('gdelt-news')?.attribution).toBe('The GDELT Project');
     expect(proxySourceById('firms-fires')?.attribution).toBe('NASA FIRMS');
+    expect(proxySourceById('meteored-conditions')?.attribution).toBe('Meteored (tiempo.com)');
     expect(proxySourceById('not-a-feed')).toBeUndefined();
   });
 
@@ -136,22 +137,39 @@ describe('the source registry', () => {
     // `publicUrl` is echoed to every visitor. If a secret can reach it, the
     // "zero keys in the client bundle" criterion is satisfied and defeated at
     // the same time — the key just leaves through the response instead.
-    for (const id of ['gdelt-news', 'firms-fires']) {
+    for (const id of ['gdelt-news', 'firms-fires', 'meteored-conditions']) {
       expect(proxySourceById(id)?.publicUrl).not.toMatch(/[?/]([A-Za-z0-9]{20,})/);
     }
     expect(proxySourceById('firms-fires')?.publicUrl).toContain('<MAP_KEY>');
+    expect(proxySourceById('meteored-conditions')?.publicUrl).toContain('<AFFILIATE_ID>');
   });
 
   it('refuses to build a URL for a key-gated source when the key is absent', () => {
-    const built = proxySourceById('firms-fires')?.buildUrl({});
-    expect(built).toBeDefined();
-    expect(built && 'missing' in built).toBe(true);
+    for (const id of ['firms-fires', 'meteored-conditions']) {
+      const built = proxySourceById(id)?.buildUrl({});
+      expect(built).toBeDefined();
+      expect(built && 'missing' in built).toBe(true);
+    }
+  });
+
+  it('names the missing secret, so the refusal is actionable', () => {
+    // "Unavailable" tells a reader nothing they can do. The env var name does.
+    const firms = proxySourceById('firms-fires')?.buildUrl({});
+    const meteored = proxySourceById('meteored-conditions')?.buildUrl({});
+    expect(firms && 'missing' in firms && firms.missing).toContain('FIRMS_MAP_KEY');
+    expect(meteored && 'missing' in meteored && meteored.missing).toContain('METEORED_AFFILIATE_ID');
+  });
+
+  it('puts the key in the request URL but never in the published one', () => {
+    const built = proxySourceById('meteored-conditions')?.buildUrl({ METEORED_AFFILIATE_ID: 'SECRET-KEY-VALUE' });
+    expect(built && 'url' in built && built.url).toContain('SECRET-KEY-VALUE');
+    expect(proxySourceById('meteored-conditions')?.publicUrl).not.toContain('SECRET-KEY-VALUE');
   });
 
   it('declares a cron for every source, so nothing is registered and never refreshed', () => {
     const crons = proxyCronExpressions();
     expect(crons.length).toBeGreaterThan(0);
-    for (const id of ['gdelt-news', 'firms-fires']) {
+    for (const id of ['gdelt-news', 'firms-fires', 'meteored-conditions']) {
       expect(crons).toContain(proxySourceById(id)?.cron);
     }
   });
