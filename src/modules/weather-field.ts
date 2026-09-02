@@ -121,7 +121,21 @@ const LAYERS: readonly Layer[] = [
   { id: 'precipitation', variable: 'precipitation', label: 'Precipitation', unit: 'mm', min: 0, max: 20, ramp: MONO_RAMP, format: one('mm') },
 ];
 
-/** Every variable fetched per sample, so switching layers costs no new request. */
+/**
+ * Every variable, requested ONLY for the single exact point under a settled
+ * pointer — never for the grid.
+ *
+ * The grid asks for one variable, the one being drawn. That distinction is not
+ * a micro-optimisation: Open-Meteo weights a request by locations times
+ * variables, so seventeen variables across 260 points is roughly 4,400 units
+ * against a free daily allowance of 10,000 — spent out of the VISITOR'S quota,
+ * because this is Lane A and their browser is the one asking. Two page loads
+ * would have exhausted someone's day. One variable across 260 points is
+ * seventeen times cheaper, and the map only ever draws one at a time anyway.
+ *
+ * Changing layer therefore costs one grid request. That is the honest trade,
+ * and it is debounced.
+ */
 const ALL_VARIABLES = LAYERS.map((layer) => layer.variable).join(',');
 
 /**
@@ -250,10 +264,15 @@ class WeatherField extends BaseModule {
     select.value = this.#layer.id;
     select.addEventListener('change', () => {
       const found = LAYERS.find((layer) => layer.id === select.value);
-      // Switching layer costs nothing upstream: every variable is already in
-      // each sample, so this is a repaint rather than a refetch.
-      if (found !== undefined) this.#layer = found;
+      if (found === undefined) return;
+      this.#layer = found;
+      // The grid holds only the variable it was asked for, so a new layer is a
+      // new request rather than a repaint. Drawn immediately anyway, so the
+      // legend and labels change at once and the old field clears rather than
+      // sitting there mislabelled.
+      this.#grid = null;
       this.#draw();
+      this.#scheduleGridFetch(250);
     });
 
     const reset = el('button', { class: 'field__reset', type: 'button' }, 'Whole world');
@@ -394,9 +413,11 @@ class WeatherField extends BaseModule {
     }
     if (lats.length === 0) return;
 
+    // One variable, not seventeen. See ALL_VARIABLES for why that matters.
+    const variable = this.#layer.variable;
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lats.join(',')}&longitude=${lons.join(',')}` +
-      `&current=${ALL_VARIABLES}&cell_selection=nearest`;
+      `&current=${variable}&cell_selection=nearest`;
 
     try {
       const response = await fetch(url, { signal: this.#abort?.signal ?? null });
@@ -424,12 +445,10 @@ class WeatherField extends BaseModule {
         if (cellLat === null || cellLon === null) return;
 
         const values = new Map<string, number>();
-        for (const layer of LAYERS) {
-          const raw = current[layer.variable];
-          // A variable a model does not carry comes back null. It stays absent
-          // rather than becoming zero, which would read as a real measurement.
-          if (typeof raw === 'number' && Number.isFinite(raw)) values.set(layer.variable, raw);
-        }
+        const raw = current[variable];
+        // A variable a model does not carry comes back null. It stays absent
+        // rather than becoming zero, which would read as a real measurement.
+        if (typeof raw === 'number' && Number.isFinite(raw)) values.set(variable, raw);
 
         const stamp = current['time'];
         const time = typeof stamp === 'string' ? Date.parse(`${stamp}:00Z`) : Number.NaN;
