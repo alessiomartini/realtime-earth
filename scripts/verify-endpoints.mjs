@@ -176,6 +176,41 @@ const ENDPOINTS = [
   // frame, and the sample is what decides the parser.
   { id: 'blitzortung-ws', kind: 'ws', expectedLane: 'C', policyLane: 'C', subscribe: '{"time":0}', awaitMessage: true, sampleChars: 700, url: 'wss://ws1.blitzortung.org:3000/', note: 'real-time strikes; their policy requires serving our own clients from our own server' },
   { id: 'blitzortung-ws-alt', kind: 'ws', expectedLane: 'C', policyLane: 'C', subscribe: '{"time":0}', awaitMessage: true, sampleChars: 700, url: 'wss://ws7.blitzortung.org:3000/', note: 'second server, so one host being down is distinguishable from the network being gone' },
+  // "Handshake failed" has at least three causes that need different fixes:
+  // the port is unreachable from here, the host is gone, or the server rejects
+  // the request. These separate them.
+  //
+  // The 443 variant matters for a second reason, and it is the one that decides
+  // whether this feed is buildable at all: a Cloudflare Worker's `fetch` can
+  // only reach a fixed set of ports, and 3000 is not among them. If Blitzortung
+  // only speaks on 3000, a Worker relay cannot open the upstream connection
+  // with `fetch` at all — which is exactly the kind of constraint that has to be
+  // found before a design depends on it, not after.
+  { id: 'blitzortung-tcp-3000', kind: 'rest', expectedLane: 'C', discovery: true, sampleChars: 300, url: 'https://ws1.blitzortung.org:3000/', note: 'DISCOVERY: is port 3000 reachable at all from here — separates a blocked port from a refused handshake' },
+  { id: 'blitzortung-ws-443', kind: 'ws', expectedLane: 'C', policyLane: 'C', subscribe: '{"time":0}', awaitMessage: true, sampleChars: 700, url: 'wss://ws1.blitzortung.org/', note: 'DISCOVERY: does it also speak on 443 — the only ports a Cloudflare Worker fetch can reach' },
+  { id: 'blitzortung-http-443', kind: 'rest', expectedLane: 'C', discovery: true, sampleChars: 300, url: 'https://ws1.blitzortung.org/', note: 'DISCOVERY: what answers on 443, if anything' },
+
+  // Individually probed high-resolution models. A combined `models=` request
+  // returns one merged answer, which cannot show WHICH model replied — and
+  // "we used a 1 km model" is a claim that has to be checked per model rather
+  // than assumed from a list that was accepted without complaint.
+  { id: 'openmeteo-model-ch1', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=46.8&longitude=8.2&current=temperature_2m&models=meteoswiss_icon_ch1', note: 'DISCOVERY: 1 km, Alps' },
+  { id: 'openmeteo-model-icond2', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=52.5&longitude=13.4&current=temperature_2m&models=icon_d2', note: 'DISCOVERY: 2.2 km, central Europe' },
+  { id: 'openmeteo-model-arome', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=48.9&longitude=2.3&current=temperature_2m&models=arome_france_hd', note: 'DISCOVERY: 1.5 km, France' },
+  { id: 'openmeteo-model-hrrr', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=40.7&longitude=-74.0&current=temperature_2m&models=ncep_hrrr_conus', note: 'DISCOVERY: 3 km, continental US' },
+  { id: 'openmeteo-model-italia', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=41.9&longitude=12.5&current=temperature_2m&models=italia_meteo_arpae_icon_2i', note: 'DISCOVERY: 2.2 km, Italy' },
+  { id: 'openmeteo-model-ukmo', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 400, url: 'https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.1&current=temperature_2m&models=ukmo_uk_deterministic_2km', note: 'DISCOVERY: 2 km, UK' },
+  // How many coordinates one request will take decides the real map resolution,
+  // since that is what sets how many samples a single refresh can afford.
+  { id: 'openmeteo-multipoint-cap', kind: 'rest', expectedLane: 'A', discovery: true, sampleChars: 300, buildUrl: () => {
+    const lats = [];
+    const lons = [];
+    for (let i = 0; i < 300; i += 1) {
+      lats.push((35 + (i % 20) * 0.5).toFixed(2));
+      lons.push((-10 + Math.floor(i / 20) * 0.5).toFixed(2));
+    }
+    return `https://api.open-meteo.com/v1/forecast?latitude=${lats.join(',')}&longitude=${lons.join(',')}&current=temperature_2m`;
+  }, note: 'DISCOVERY: does a 300-coordinate request succeed — this sets the map’s achievable grid density' },
 ];
 
 const args = process.argv.slice(2);
@@ -196,7 +231,11 @@ async function checkHttp(endpoint, attempt = 1) {
   const { signal, done } = withTimeout(TIMEOUT_MS);
   const started = Date.now();
   try {
-    const response = await fetch(endpoint.url, {
+    // Some probes need a URL too long to write out by hand — a 300-coordinate
+    // request, for instance. `buildUrl` generates it; everything else is a
+    // plain literal, which stays far easier to read and to re-run by hand.
+    const target = endpoint.buildUrl ? endpoint.buildUrl() : endpoint.url;
+    const response = await fetch(target, {
       method: endpoint.method ?? 'GET',
       // Sending a browser-like Origin is the whole point: it is what reveals
       // whether the source will actually answer a browser (Lane A) or not.
