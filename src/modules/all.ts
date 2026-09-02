@@ -12,7 +12,7 @@ import './registry.js';
 
 import './binance-btc.js'; //        markets   — Lane A, WebSocket + klines history
 import './usgs-earthquakes.js'; //   earth     — Lane A, poll + 24h history
-import './surface-temperature.js'; // earth    — Lane A, poll, hover readout
+import './weather-field.js'; //      earth     — Lane A, poll, 17 fields, zoomable grid
 import './wikipedia-changes.js'; //  noosphere — Lane A, SSE, no history available
 import './gdelt-news.js'; //         noosphere — Lane B, Worker proxy + KV, 1h history
 

@@ -14,6 +14,7 @@
 
 import { handleNotes, type NotesEnv } from './notes.js';
 import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './proxy.js';
+import { handleBlitzortungProbe } from './blitzortung-probe.js';
 
 export interface Env extends NotesEnv, ProxyEnv {
   ASSETS: Fetcher;
@@ -65,6 +66,14 @@ export default {
           C: 'not yet implemented (step 5)',
         },
       });
+    }
+
+    // A reachability diagnostic, not a feed. Verification from a GitHub runner
+    // could not reach Blitzortung at all, and the same was true of GDELT right
+    // before it turned out to work perfectly from Cloudflare. This asks from
+    // here instead. Nothing reads it as data.
+    if (url.pathname === '/api/_diag/blitzortung') {
+      return handleBlitzortungProbe();
     }
 
     // Lane B. Every proxied source is served from `/api/<module-id>` by the

@@ -797,6 +797,132 @@ a:hover {
   cursor: crosshair;
 }
 
+/* A navigable map says so with the cursor: grab to pan, and the browser's own
+   gesture handling is off so a wheel zooms the map rather than the page. */
+.worldmap--navigable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.worldmap--navigable:active {
+  cursor: grabbing;
+}
+
+/* --- the weather field ------------------------------------------------- */
+
+.field__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.field__select,
+.field__reset {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.field__select:hover,
+.field__reset:hover {
+  border-color: var(--rule-strong);
+}
+
+.field__legend {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  background: var(--bg-panel);
+}
+
+.field__legendswatch {
+  display: block;
+  width: 2.2rem;
+  height: 0.7rem;
+}
+
+.field__legendlabel {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__legendlabel:first-child {
+  margin-right: 0.4rem;
+}
+
+.field__legendlabel:last-child {
+  margin-left: 0.4rem;
+}
+
+.field__hover {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  border: 1px solid var(--rule);
+  border-top: 0;
+  background: var(--bg-panel);
+  padding: 0.6rem 0.75rem;
+  /* Fixed minimum height so the page does not jump as rows appear and go —
+     a readout that shifts the layout under the cursor is unusable. */
+  min-height: 7.5rem;
+}
+
+.field__hoverhead {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.35rem;
+}
+
+.field__hoverrow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  padding: 0.1rem 0;
+}
+
+.field__hoverkey {
+  color: var(--fg-faint);
+  flex: 0 0 8rem;
+}
+
+/* The reading at the exact point, as opposed to the nearest sample. Given
+   emphasis because the difference between the two is the thing most likely to
+   be misread on this page. */
+.field__hoverrow--exact {
+  color: var(--fg);
+}
+
+.field__hoverrow--pending,
+.field__hoverrow--time {
+  color: var(--fg-faint);
+}
+
+.field__hoverall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.field__hoverchip {
+  font-size: 0.6875rem;
+  color: var(--fg-dim);
+  border: 1px solid var(--rule);
+  padding: 0.1rem 0.35rem;
+}
+
 .readout-line {
   display: flex;
   flex-wrap: wrap;
