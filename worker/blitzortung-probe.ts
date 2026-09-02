@@ -21,6 +21,8 @@
  * No feed reads from this, and nothing it returns is displayed as data.
  */
 
+import { lzwDecode } from './lightning-relay.js';
+
 const UPSTREAM = 'https://ws1.blitzortung.org/';
 
 /**
@@ -36,40 +38,6 @@ const SUBSCRIBE_CANDIDATES = ['{"a":111}', '{"time":0}'];
 const WAIT_MS = 9_000;
 const MAX_FRAMES = 2;
 
-/**
- * Blitzortung compresses each frame with an LZW variant.
- *
- * This is the widely-replicated decoder for that format. It is NOT taken on
- * trust: the probe reports the decoded text alongside the raw bytes, so whether
- * it produces valid JSON with plausible coordinates is visible rather than
- * assumed. A decoder that silently produced plausible-looking garbage is the
- * failure to guard against, and JSON either parses or it does not.
- */
-export function lzwDecode(input: string): string {
-  if (input.length === 0) return '';
-  const dictionary = new Map<number, string>();
-  let currentChar = input[0]!;
-  let oldPhrase = currentChar;
-  const out: string[] = [currentChar];
-  let code = 256;
-
-  for (let i = 1; i < input.length; i += 1) {
-    const currentCode = input.charCodeAt(i);
-    let phrase: string;
-    if (currentCode < 256) {
-      phrase = input[i]!;
-    } else {
-      const known = dictionary.get(currentCode);
-      phrase = known !== undefined ? known : oldPhrase + currentChar;
-    }
-    out.push(phrase);
-    currentChar = phrase.charAt(0);
-    dictionary.set(code, oldPhrase + currentChar);
-    code += 1;
-    oldPhrase = phrase;
-  }
-  return out.join('');
-}
 
 interface Attempt {
   subscribe: string;

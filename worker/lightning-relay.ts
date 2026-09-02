@@ -30,8 +30,51 @@
  */
 
 const UPSTREAM = 'https://ws1.blitzortung.org/';
-/** The stream is silent until subscribed to. Verified: a handshake alone gets nothing. */
-const SUBSCRIBE = '{"time":0}';
+
+/**
+ * VERIFIED against production, and the verification mattered.
+ *
+ * `{"time":0}`, taken from a published client library, produced a clean
+ * `HTTP/1.1 101` upgrade followed by twelve seconds of total silence. It would
+ * have shipped as a feed that connects perfectly and never shows a strike.
+ * `{"a":111}` returns frames in about a second.
+ */
+const SUBSCRIBE = '{"a":111}';
+
+/**
+ * Blitzortung compresses every frame with an LZW variant, so a raw frame is not
+ * JSON and never was — an unguarded `JSON.parse` on it simply throws forever
+ * and the map stays empty with no explanation.
+ *
+ * Verified in production: this decoder turns a real frame into valid JSON whose
+ * keys are exactly time, lat, lon, alt, pol, mds, mcg, status, region, sig,
+ * delay, lonc and latc.
+ */
+export function lzwDecode(input: string): string {
+  if (input.length === 0) return '';
+  const dictionary = new Map<number, string>();
+  let currentChar = input[0]!;
+  let oldPhrase = currentChar;
+  const out: string[] = [currentChar];
+  let code = 256;
+
+  for (let i = 1; i < input.length; i += 1) {
+    const currentCode = input.charCodeAt(i);
+    let phrase: string;
+    if (currentCode < 256) {
+      phrase = input[i]!;
+    } else {
+      const known = dictionary.get(currentCode);
+      phrase = known !== undefined ? known : oldPhrase + currentChar;
+    }
+    out.push(phrase);
+    currentChar = phrase.charAt(0);
+    dictionary.set(code, oldPhrase + currentChar);
+    code += 1;
+    oldPhrase = phrase;
+  }
+  return out.join('');
+}
 
 const RETRY_MIN_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
@@ -39,12 +82,13 @@ const RETRY_MAX_MS = 30_000;
 /**
  * A strike more than a day from now is not a strike, it is a misread timestamp.
  *
- * Blitzortung reports time in NANOSECONDS since the epoch. Treating that as
- * milliseconds places every strike in 1970 and — far worse — it would look like
- * working code: markers would appear, the count would rise, and only the age
- * readout would be absurd. So the conversion is range-checked, and a value that
- * lands outside the plausible window is reported as unknown rather than drawn
- * at a time nobody recorded.
+ * Blitzortung reports time in NANOSECONDS since the epoch — confirmed from a
+ * real frame, where 1788366104013598000 divided by a million landed exactly on
+ * the second the probe ran. Treating it as milliseconds instead places every
+ * strike far outside any valid date, and the failure would still look like
+ * working code: markers would appear and the count would rise. So the
+ * conversion is range-checked, and a value landing outside the plausible window
+ * is reported as unknown rather than drawn at a time nobody recorded.
  */
 const PLAUSIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -229,7 +273,9 @@ export class LightningRelay {
 
       socket.addEventListener('message', (event) => {
         if (typeof event.data !== 'string') return;
-        const strike = parseStrike(event.data);
+        // Decompress first. A raw frame is not JSON, so parsing it directly
+        // throws on every message and leaves an empty map with no explanation.
+        const strike = parseStrike(lzwDecode(event.data));
         // A message we cannot read is dropped, not guessed at. Nothing
         // half-parsed reaches a client.
         if (strike === null) return;
