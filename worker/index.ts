@@ -6,7 +6,7 @@
  *     the runtime before this script runs for every path except the ones
  *     listed in `run_worker_first` in wrangler.jsonc;
  *   - `/api/<module-id>` — Lane B proxy/cache routes;
- *   - `/ws/<module-id>`  — Lane C Durable Object relay routes (added in step 5).
+ *   - `/ws/<module-id>`  — Lane C Durable Object relay routes.
  *
  * It also runs on a schedule, refreshing the Lane B sources into KV, so that no
  * visitor's page load is what makes a rate-limited source get hit.
@@ -15,8 +15,13 @@
 import { handleNotes, type NotesEnv } from './notes.js';
 import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './proxy.js';
 import { handleBlitzortungProbe } from './blitzortung-probe.js';
+import { handleLightningSocket, LightningRelay, type RelayEnv } from './lightning-relay.js';
 
-export interface Env extends NotesEnv, ProxyEnv {
+// The Durable Object class has to be exported from the Worker's entrypoint for
+// the runtime to find it.
+export { LightningRelay };
+
+export interface Env extends NotesEnv, ProxyEnv, RelayEnv {
   ASSETS: Fetcher;
 }
 
@@ -63,7 +68,7 @@ export default {
         lanes: {
           A: 'direct from the browser — no Worker involvement',
           B: 'proxy + scheduled refresh into KV, served from /api/<module-id>',
-          C: 'not yet implemented (step 5)',
+          C: 'Durable Object relay: one upstream stream shared by every viewer, at /ws/<module-id>',
         },
       });
     }
@@ -74,6 +79,13 @@ export default {
     // here instead. Nothing reads it as data.
     if (url.pathname === '/api/_diag/blitzortung') {
       return handleBlitzortungProbe();
+    }
+
+    // Lane C. One relay, one upstream connection, however many people are
+    // watching — which is both what the lane is for and what Blitzortung asks
+    // of applications that use their volunteers' data.
+    if (url.pathname === '/ws/lightning-strikes') {
+      return handleLightningSocket(request, env);
     }
 
     // Lane B. Every proxied source is served from `/api/<module-id>` by the

@@ -57,11 +57,19 @@
     "crons": ["4,19,34,49 * * * *", "27 * * * *"]
   },
 
+  // Lane C. A Durable Object rather than a plain Worker because there has to
+  // be exactly ONE of it: a Worker is instantiated per request, so a hundred
+  // visitors would open a hundred upstream connections to a volunteer-run
+  // detection network — precisely what the relay exists to prevent.
+  "durable_objects": {
+    "bindings": [{ "name": "LIGHTNING_RELAY", "class_name": "LightningRelay" }]
+  },
+
+  // The relay persists nothing; it forwards a live stream and forgets it. The
+  // migration is still required to register the class with the runtime.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LightningRelay"] }],
+
   "observability": {
     "enabled": true
   }
-
-  // Added in later steps, kept here as a map of what is coming:
-  //   "durable_objects" - Lane C AisRelay
-  //   "migrations"      - SQLite-backed DO class registration
 }
