@@ -1,0 +1,41 @@
+name: Diagnose a source from production
+
+# Some questions can only be answered from where the code will actually run.
+#
+# GDELT refused every probe from a GitHub runner and then worked perfectly from
+# Cloudflare, and Blitzortung is currently unreachable from a runner in exactly
+# the same way. Reading "unreachable" as "dead" would have dropped a working
+# source once already, so this asks the deployed Worker instead and prints what
+# it found.
+#
+# Read-only reachability information. Nothing here is a data feed and nothing it
+# returns is displayed on the site.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: Ask the deployed Worker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Blitzortung reachability, from Cloudflare
+        env:
+          URL: https://realtime-earth.alemarti-2001.workers.dev
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o /tmp/diag.json -w '%{http_code}' --max-time 90 "$URL/api/_diag/blitzortung")
+          echo "HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::The diagnostic route did not answer (HTTP $code)."
+            cat /tmp/diag.json || true
+            exit 1
+          fi
+          python3 -m json.tool /tmp/diag.json | tee /tmp/diag.txt
+          {
+            echo '## Blitzortung reachability from Cloudflare'
+            echo
+            echo '```json'
+            cat /tmp/diag.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
