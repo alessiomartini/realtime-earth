@@ -14,7 +14,12 @@ Vite/TypeScript realtime-earth application with a worker and Cloudflare tooling.
 
 ## Workflow
 
-- Read `README.md` and the affected client/worker code before editing.
+- Read `README.md`, `FUTURE-ARCHITECTURE.md` and the affected client/worker code
+  before editing. `FUTURE-ARCHITECTURE.md` tracks the remaining roadmap steps
+  and known per-source blockers (Stooq key, FIRMS key, Binance geo-restriction).
 - Keep secrets out of source and generated bundles; use local fake data.
 - Do not deploy; run `npm run deploy` only with explicit approval.
 - Inspect `git diff` and report the exact checks run before committing.
+- The `worker/notes.ts` "notebook" endpoint is author-only (gated by
+  `NOTES_TOKEN`, fails closed), not a public feedback form — do not build
+  public-facing feedback on top of it without discussing the change first.
