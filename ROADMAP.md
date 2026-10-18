@@ -68,10 +68,12 @@ CI) — this table goes stale as soon as a source changes its API.
 ### Feedback centralizzato (fatto il 2026-10-19: backend unico `site-notes`)
 
 Il notebook ora scrive in `site-notes` (repo `alessiomartini/site-notes`, `site = 'realtime-earth'`),
-che per questo sito resta privato (`PRIVATE`: token anche per scrivere, fallisce CLOSED). Tolti
+inizialmente come sito privato (token anche per scrivere). Poi, lo stesso giorno, **solo scrittura e niente
+token**: ad Alessio non serve che la pagina rilegga le note, serve che Claude le legga dal D1 e le porti in
+questo ROADMAP; il notebook ora mostra solo le note non ancora inviate. Tolti
 `worker/notes.ts`, `/api/notes`, il binding `NOTES_DB`, l'upload del secret e il controllo del notebook nel
-deploy. Il D1 `realtime-earth-notes` e il secret `NOTES_TOKEN` di questo worker li spegne Alessio dopo la
-migrazione. Il testo sotto è la discussione di prima, tenuta come storia.
+deploy. Il D1 `realtime-earth-notes` e il secret `NOTES_TOKEN` sono stati spenti dopo la migrazione.
+Il testo sotto è la discussione di prima, tenuta come storia.
 
 
 Questo sito ha già un "notebook" (`worker/notes.ts`, tabella D1 `notes(id,
@@ -113,7 +115,7 @@ passi 4-7 della roadmap sopra sono più urgenti. Non implementare senza che
 Alessio lo chieda esplicitamente.
 
 ## Log
-- 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker
+- 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1)
 - 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
 - 2026-10-18: FUTURE-ARCHITECTURE.md unito in ROADMAP.md (protocollo unico)
 - 2026-10-15: creata la roadmap per Projects Overview
