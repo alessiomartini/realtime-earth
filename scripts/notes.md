@@ -13,44 +13,36 @@ using it, and picked up later.
 
 ## Where notes live
 
-Cloudflare D1, database `realtime-earth-notes`
-(`a4e13537-0705-4a67-82d4-6ade1dd87213`), table `notes`:
+In the shared `site-notes` backend: one Cloudflare Worker + one D1 for the notes
+of all of Alessio's sites (repo `alessiomartini/site-notes`, see its README),
+rows with `site = 'realtime-earth'`. Columns that matter here: `id` (the
+browser's local id, so a retried send is not duplicated), `text`, `page` (e.g.
+`/m/surface-temperature`), `done`, `created_at`.
 
-| column | meaning |
-| --- | --- |
-| `id` | note number, used to refer to it |
-| `body` | what was written |
-| `page` | the path it was written from, e.g. `/m/surface-temperature` |
-| `status` | `open` or `done` |
-| `created_at` | when it was written |
-| `done_at` | when it was marked done |
-
-D1 rather than KV for one reason: a SQL database can be read directly through
-the Cloudflare API, which is what removes the copy-and-paste step entirely.
+Until 2026-10-19 they lived in this site's own D1 `realtime-earth-notes`, behind
+`/api/notes` on this Worker; they are copied over by `site-notes`'
+`scripts/migrate.mjs`.
 
 ## Reading them
 
-```sql
--- everything still to do, oldest first so the queue is worked in order
-SELECT id, page, created_at, body FROM notes WHERE status = 'open' ORDER BY id;
-
--- close one off once it is actually implemented
-UPDATE notes SET status = 'done', done_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?;
-```
-
-Over HTTP, with the passphrase:
+From the `site-notes` repo:
 
 ```sh
-curl -H "Authorization: Bearer $NOTES_TOKEN" https://realtime-earth.alemarti-2001.workers.dev/api/notes
+npx wrangler d1 execute site-notes --remote --command "SELECT id, page, created_at, text FROM notes WHERE site = 'realtime-earth' AND done = 0 ORDER BY created_at"
+```
+
+Over HTTP, with the passphrase (the `site-notes` `NOTES_TOKEN`):
+
+```sh
+curl -H "Authorization: Bearer $NOTES_TOKEN" https://site-notes.alemarti-2001.workers.dev/realtime-earth/notes
 ```
 
 ## Why it is gated
 
-The site is public and this endpoint writes to a database, so it requires a
-passphrase and **fails closed**: with no `NOTES_TOKEN` configured the Worker
-refuses to write at all, rather than leaving an open write endpoint running on a
-public origin unnoticed. The token is compared in constant time, so a wrong
-guess leaks nothing about how much of it was right.
+The site is public, so writing needs the passphrase too: `realtime-earth` is in
+`site-notes`' `PRIVATE` list, and with no `NOTES_TOKEN` configured that Worker
+refuses every write (it **fails closed**). The token is compared in constant
+time, so a wrong guess leaks nothing about how much of it was right.
 
 ## Notes are requests, not commands
 

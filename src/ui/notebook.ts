@@ -17,10 +17,13 @@ import { el } from './dom.js';
  *    trade tape, and remembering to say which one is exactly the sort of thing
  *    nobody does while actually using a site.
  *
- * The passphrase is held in localStorage and sent as a bearer token. The site
- * is public and this endpoint writes to a database, so it is gated; the Worker
- * refuses writes outright when no token is configured.
+ * Notes go to the shared site-notes Worker (one D1 for all of Alessio's sites,
+ * repo alessiomartini/site-notes, site = "realtime-earth"). The passphrase is
+ * that Worker's NOTES_TOKEN, held in localStorage and sent as a bearer token;
+ * realtime-earth is a private site there, so writes without it are refused.
  */
+
+const NOTES_URL = 'https://site-notes.alemarti-2001.workers.dev/realtime-earth/notes';
 
 const STORAGE_KEY = 'realtime-earth.notes.queue';
 const TOKEN_KEY = 'realtime-earth.notes.token';
@@ -37,7 +40,7 @@ interface QueuedNote {
 }
 
 interface ServerNote {
-  id: number;
+  id: string;
   body: string;
   page: string | null;
   status: string;
@@ -194,7 +197,7 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
           el(
             'span',
             { class: 'notebook__notemeta' },
-            `#${note.id} · ${note.status} · ${note.page ?? 'no page'} · ${timeAgo(note.created_at)}`,
+            `${note.status} · ${note.page ?? 'no page'} · ${timeAgo(note.created_at)}`,
           ),
           el('span', { class: 'notebook__notebody' }, note.body),
         ),
@@ -213,10 +216,11 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
       return false;
     }
     try {
-      const response = await fetch('/api/notes', {
+      const response = await fetch(NOTES_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body: note.body, page: note.page }),
+        // The local id makes a retry idempotent: the server upserts on it.
+        body: JSON.stringify({ id: note.localId, text: note.body, page: note.page, at: note.createdAt }),
       });
       if (!response.ok) {
         const detail = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -261,13 +265,21 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
       return;
     }
     try {
-      const response = await fetch('/api/notes', { headers: { authorization: `Bearer ${token}` } });
+      const response = await fetch(NOTES_URL, { headers: { authorization: `Bearer ${token}` } });
       if (!response.ok) {
         serverNotes = [];
         return;
       }
-      const body = (await response.json()) as { notes?: ServerNote[] };
-      serverNotes = Array.isArray(body.notes) ? body.notes : [];
+      const body = (await response.json()) as {
+        notes?: { id: string; text: string; page: string | null; done: boolean; created_at: string }[];
+      };
+      serverNotes = (body.notes ?? []).map((n) => ({
+        id: n.id,
+        body: n.text,
+        page: n.page,
+        status: n.done ? 'done' : 'open',
+        created_at: n.created_at,
+      }));
     } catch {
       serverNotes = [];
     }
