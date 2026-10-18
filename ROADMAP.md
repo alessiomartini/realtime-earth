@@ -27,7 +27,8 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - ambiente: aria, terreno, umidità, temperatura, vento, esposizione UV
   - altro: …
 
-- [ ] Feedback centralizzato: un unico D1 + Worker condiviso fra tutti i siti (dettagli sotto, in "Decisioni e cose provate"). Priorità bassa, non implementare senza che Alessio lo chieda
+- [x] Feedback centralizzato: un unico D1 + Worker condiviso fra tutti i siti (fatto il 2026-10-19: `site-notes`, dettagli sotto)
+- [ ] Nota dal sito (2026-08-29, pagina Bitcoin): oltre a Binance, altri mercati di Bitcoin (es. Coinbase, Kraken, Bitstamp, che hanno feed WebSocket pubblici), anche affiancati per confrontare i prezzi
 
 ## Decisioni e cose provate
 
@@ -115,7 +116,7 @@ passi 4-7 della roadmap sopra sono più urgenti. Non implementare senza che
 Alessio lo chieda esplicitamente.
 
 ## Log
-- 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1)
+- 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee)
 - 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
 - 2026-10-18: FUTURE-ARCHITECTURE.md unito in ROADMAP.md (protocollo unico)
 - 2026-10-15: creata la roadmap per Projects Overview
