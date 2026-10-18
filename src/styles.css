@@ -1240,8 +1240,7 @@ a.tape__title:hover {
   resize: vertical;
 }
 
-.notebook__input:focus,
-.notebook__token:focus {
+.notebook__input:focus {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
@@ -1250,17 +1249,6 @@ a.tape__title:hover {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
-}
-
-.notebook__token {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: var(--bg-inset);
-  border: 1px solid var(--rule-strong);
-  color: var(--fg);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  padding: 0.45rem 0.6rem;
 }
 
 .notebook__save {
@@ -1310,10 +1298,6 @@ a.tape__title:hover {
 
 .notebook__note--pending {
   border-left-color: var(--accent-amber);
-}
-
-.notebook__note--done {
-  opacity: 0.55;
 }
 
 .notebook__notemeta {

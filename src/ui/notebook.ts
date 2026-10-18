@@ -18,15 +18,14 @@ import { el } from './dom.js';
  *    nobody does while actually using a site.
  *
  * Notes go to the shared site-notes Worker (one D1 for all of Alessio's sites,
- * repo alessiomartini/site-notes, site = "realtime-earth"). The passphrase is
- * that Worker's NOTES_TOKEN, held in localStorage and sent as a bearer token;
- * realtime-earth is a private site there, so writes without it are refused.
+ * repo alessiomartini/site-notes, site = "realtime-earth"). It is write-only, with
+ * no token: Claude reads the D1 directly and turns notes into ROADMAP items, so
+ * the page never reads them back.
  */
 
 const NOTES_URL = 'https://site-notes.alemarti-2001.workers.dev/realtime-earth/notes';
 
 const STORAGE_KEY = 'realtime-earth.notes.queue';
-const TOKEN_KEY = 'realtime-earth.notes.token';
 
 interface QueuedNote {
   /** Local id, so a queued note can be reconciled after it is sent. */
@@ -37,14 +36,6 @@ interface QueuedNote {
   sent: boolean;
   /** Why the last send attempt failed, if it did. */
   error: string | null;
-}
-
-interface ServerNote {
-  id: string;
-  body: string;
-  page: string | null;
-  status: string;
-  created_at: string;
 }
 
 function readQueue(): QueuedNote[] {
@@ -64,22 +55,6 @@ function writeQueue(queue: QueuedNote[]): void {
   } catch {
     // Storage full or blocked. The in-memory copy still holds the note for
     // this session, and the panel will show it as unsent.
-  }
-}
-
-function getToken(): string {
-  try {
-    return localStorage.getItem(TOKEN_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function setToken(token: string): void {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    /* nothing we can do; the field simply will not persist */
   }
 }
 
@@ -103,7 +78,6 @@ export interface NotebookHandle {
 export function createNotebook(currentPath: () => string): NotebookHandle {
   let queue = readQueue();
   let open = false;
-  let serverNotes: ServerNote[] = [];
   let statusText = '';
 
   const textarea = el('textarea', {
@@ -112,18 +86,6 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
     placeholder: 'What should change? Anything you notice, want, or dislike.',
     'aria-label': 'Your note',
   }) as HTMLTextAreaElement;
-
-  const tokenInput = el('input', {
-    class: 'notebook__token',
-    type: 'password',
-    placeholder: 'passphrase',
-    'aria-label': 'Notebook passphrase',
-  }) as HTMLInputElement;
-  tokenInput.value = getToken();
-  tokenInput.addEventListener('change', () => {
-    setToken(tokenInput.value.trim());
-    void flush();
-  });
 
   const status = el('p', { class: 'notebook__status' });
   const list = el('ol', { class: 'notebook__list' });
@@ -148,10 +110,10 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
     el(
       'p',
       { class: 'notebook__hint' },
-      'Written from any page and kept for later. The page you are on is recorded with the note.',
+      'Written from any page and sent for later; Claude reads them and adds them to the roadmap. The page you are on is recorded with the note.',
     ),
     textarea,
-    el('div', { class: 'notebook__row' }, tokenInput, saveButton),
+    el('div', { class: 'notebook__row' }, saveButton),
     status,
     list,
   );
@@ -177,8 +139,7 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
     status.textContent = statusText;
     status.classList.toggle('notebook__status--error', statusText.startsWith('Not saved'));
 
-    // Unsent notes first: they are the ones that still need something to
-    // happen, and burying them under the saved list would hide the problem.
+    // Only unsent notes are listed: sent ones live in the D1, not on the page.
     const pending = queue.filter((note) => !note.sent);
     list.replaceChildren(
       ...pending.map((note) =>
@@ -190,41 +151,23 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
           note.error === null ? null : el('span', { class: 'notebook__noteerror' }, note.error),
         ),
       ),
-      ...serverNotes.map((note) =>
-        el(
-          'li',
-          { class: note.status === 'done' ? 'notebook__note notebook__note--done' : 'notebook__note' },
-          el(
-            'span',
-            { class: 'notebook__notemeta' },
-            `${note.status} · ${note.page ?? 'no page'} · ${timeAgo(note.created_at)}`,
-          ),
-          el('span', { class: 'notebook__notebody' }, note.body),
-        ),
-      ),
     );
 
-    if (pending.length === 0 && serverNotes.length === 0) {
-      list.replaceChildren(el('li', { class: 'notebook__empty' }, 'No notes yet.'));
+    if (pending.length === 0) {
+      list.replaceChildren(el('li', { class: 'notebook__empty' }, 'No unsent notes.'));
     }
   }
 
   async function send(note: QueuedNote): Promise<boolean> {
-    const token = getToken();
-    if (token === '') {
-      note.error = 'no passphrase set — the note is kept here until you add one';
-      return false;
-    }
     try {
       const response = await fetch(NOTES_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        // The local id makes a retry idempotent: the server upserts on it.
-        body: JSON.stringify({ id: note.localId, text: note.body, page: note.page, at: note.createdAt }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: note.body, page: note.page }),
       });
       if (!response.ok) {
-        const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-        note.error = detail?.message ?? `server returned HTTP ${response.status}`;
+        const detail = (await response.json().catch(() => null)) as { error?: string } | null;
+        note.error = detail?.error ?? `server returned HTTP ${response.status}`;
         return false;
       }
       note.sent = true;
@@ -240,13 +183,8 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
   async function flush(): Promise<void> {
     const pending = queue.filter((note) => !note.sent);
     if (pending.length === 0) return;
-    let sentAny = false;
-    for (const note of pending) {
-      const ok = await send(note);
-      if (ok) sentAny = true;
-    }
-    // Sent notes are dropped from the local queue: the server copy is now the
-    // record, and keeping both would show every note twice.
+    for (const note of pending) await send(note);
+    // Sent notes are dropped from the local queue: the server copy is now the record.
     queue = queue.filter((note) => !note.sent);
     writeQueue(queue);
     const stillPending = unsentCount();
@@ -254,35 +192,7 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
       stillPending === 0
         ? 'Saved.'
         : `Not saved yet — ${stillPending} note${stillPending === 1 ? '' : 's'} kept in this browser and retried.`;
-    if (sentAny) await load();
     render();
-  }
-
-  async function load(): Promise<void> {
-    const token = getToken();
-    if (token === '') {
-      serverNotes = [];
-      return;
-    }
-    try {
-      const response = await fetch(NOTES_URL, { headers: { authorization: `Bearer ${token}` } });
-      if (!response.ok) {
-        serverNotes = [];
-        return;
-      }
-      const body = (await response.json()) as {
-        notes?: { id: string; text: string; page: string | null; done: boolean; created_at: string }[];
-      };
-      serverNotes = (body.notes ?? []).map((n) => ({
-        id: n.id,
-        body: n.text,
-        page: n.page,
-        status: n.done ? 'done' : 'open',
-        created_at: n.created_at,
-      }));
-    } catch {
-      serverNotes = [];
-    }
   }
 
   function save(): void {
@@ -327,7 +237,6 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
     root.classList.toggle('notebook--open', open);
     if (open) {
       textarea.focus();
-      void load().then(render);
       void flush();
     }
   }

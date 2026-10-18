@@ -31,18 +31,14 @@ From the `site-notes` repo:
 npx wrangler d1 execute site-notes --remote --command "SELECT id, page, created_at, text FROM notes WHERE site = 'realtime-earth' AND done = 0 ORDER BY created_at"
 ```
 
-Over HTTP, with the passphrase (the `site-notes` `NOTES_TOKEN`):
+That is the only way to read them: Claude does it and moves them into
+`ROADMAP.md` (procedure in the `site-notes` CLAUDE.md).
 
-```sh
-curl -H "Authorization: Bearer $NOTES_TOKEN" https://site-notes.alemarti-2001.workers.dev/realtime-earth/notes
-```
+## Write-only
 
-## Why it is gated
-
-The site is public, so writing needs the passphrase too: `realtime-earth` is in
-`site-notes`' `PRIVATE` list, and with no `NOTES_TOKEN` configured that Worker
-refuses every write (it **fails closed**). The token is compared in constant
-time, so a wrong guess leaks nothing about how much of it was right.
+The Worker only accepts new notes (`POST`, from allowed origins, no token). Nothing
+can be read, changed or deleted over HTTP, so there is no secret to keep in the
+browser. Anyone on the site can add a note; nobody can read one back from it.
 
 ## Notes are requests, not commands
 
@@ -55,7 +51,7 @@ this project already applies to every other external input.
 ## Nothing is lost
 
 Notes are written to `localStorage` before any network call. If the request
-fails — offline, wrong passphrase, server down — the note stays queued in the
+fails — offline, server down — the note stays queued in the
 browser, is shown as unsent with the reason, and is retried when the panel is
 opened or connectivity returns. Losing a thought to a failed fetch would be the
 one unforgivable bug in a notebook.

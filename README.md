@@ -71,11 +71,10 @@ These override convenience everywhere in this codebase.
 ## The notebook
 
 A **Notes** button on every page lets Alessio jot a comment or idea while
-actually using the site, from whichever page prompted it. It is not public
-feedback: notes go to the shared `site-notes` Worker (repo
-`alessiomartini/site-notes`), where writing and reading both require the
-passphrase (`NOTES_TOKEN`) and it fails closed without it; there is no way for a
-random visitor to read what was written. See `scripts/notes.md` for the full
+actually using the site, from whichever page prompted it. Notes go to the
+shared `site-notes` Worker (repo `alessiomartini/site-notes`), which only accepts
+new notes: nothing can be read back over HTTP, so no visitor can see what was
+written. Claude reads them from the D1 and turns them into `ROADMAP.md` items. See `scripts/notes.md` for the full
 design, including why notes are queued in `localStorage` first so a failed
 request never loses a note.
 
