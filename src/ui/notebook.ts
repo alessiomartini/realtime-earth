@@ -26,6 +26,17 @@ import { el } from './dom.js';
 const NOTES_URL = 'https://site-notes.alemarti-2001.workers.dev/realtime-earth/notes';
 
 const STORAGE_KEY = 'realtime-earth.notes.queue';
+const AUTHOR_KEY = 'site-notes.author';
+
+/** Opening the site once with `?sono-alessio` marks this browser as Alessio's: a label, not a login. */
+function noteAuthor(): string | undefined {
+  try {
+    if (new URLSearchParams(location.search).has('sono-alessio')) localStorage.setItem(AUTHOR_KEY, 'alessio');
+    return localStorage.getItem(AUTHOR_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 interface QueuedNote {
   /** Local id, so a queued note can be reconciled after it is sent. */
@@ -163,7 +174,7 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
       const response = await fetch(NOTES_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text: note.body, page: note.page }),
+        body: JSON.stringify({ text: note.body, page: note.page, author: noteAuthor() }),
       });
       if (!response.ok) {
         const detail = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -254,6 +265,7 @@ export function createNotebook(currentPath: () => string): NotebookHandle {
   const onOnline = (): void => void flush();
   window.addEventListener('online', onOnline);
 
+  noteAuthor(); // picks up ?sono-alessio
   render();
   void flush();
 
