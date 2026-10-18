@@ -214,7 +214,7 @@ scripts/verify-endpoints.mjs      source verification gate
 scripts/check-bundle-secrets.mjs  "no secrets in the bundle" acceptance check
 ```
 
-See `FUTURE-ARCHITECTURE.md` for what is left on this roadmap, known
+See `ROADMAP.md` for what is left on this roadmap, known
 per-source blockers, and an undecided idea about a shared notes database
 across Alessio's sites.
 
