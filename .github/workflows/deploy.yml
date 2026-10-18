@@ -43,10 +43,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    # Job level, so the conditional secret-upload step can test it: the
-    # `secrets` context is not available in a step-level `if:`.
-    env:
-      NOTES_TOKEN: ${{ secrets.NOTES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,26 +94,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # Uploaded separately, and only when it exists.
-      #
-      # Passing NOTES_TOKEN through the deploy step's `secrets:` input broke
-      # every deploy the moment the notebook was added: wrangler-action fails
-      # outright with "Value for secret NOTES_TOKEN not found in environment"
-      # when the repository secret is unset. A new optional feature must never
-      # be able to stop the site from shipping, so the upload is conditional and
-      # the deploy above no longer depends on it. Without the token the Worker
-      # simply refuses notebook writes, which is the intended fallback.
-      #
-      # `printf` rather than `echo`: a trailing newline would become part of the
-      # secret, and the passphrase typed on the site would then never match.
-      - name: Upload the notebook passphrase (only when configured)
-        if: env.NOTES_TOKEN != ''
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NOTES_TOKEN: ${{ secrets.NOTES_TOKEN }}
-        run: printf '%s' "$NOTES_TOKEN" | npx wrangler secret put NOTES_TOKEN
-
       # A green deploy step means "wrangler uploaded it", not "the site works".
       # This checks the deployed origin actually serves BOTH halves of the
       # hosting model — static assets and a Worker route — from one host, which
@@ -125,8 +101,6 @@ jobs:
       - name: Smoke-test the deployed origin
         env:
           URL: ${{ steps.deploy.outputs.deployment-url }}
-          # Only tested for emptiness, never printed or sent anywhere.
-          NOTES_TOKEN: ${{ secrets.NOTES_TOKEN }}
         run: |
           if [ -z "$URL" ]; then
             echo "::error::The deploy step reported no URL, so there is nothing to verify. Refusing to report success."
@@ -149,43 +123,7 @@ jobs:
           code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/api/does-not-exist")
           if [ "$code" != "404" ]; then echo "::error::GET /api/does-not-exist returned $code, expected 404"; fail=1; fi
 
-          # 4. The notebook must never accept an unauthenticated write — and the
-          #    exact refusal says whether the passphrase actually reached the
-          #    Worker. 401 means it did; 503 means the Worker sees no token.
-          #
-          #    Accepting either would make this check unable to tell a working
-          #    notebook from a broken one, which was its first failure: it
-          #    passed on a 503 while the passphrase was supposedly configured.
-          #
-          #    `wrangler secret put` publishes a NEW Worker version, and the
-          #    step above finishes seconds before this one runs, so the first
-          #    request can legitimately hit the previous version. Poll rather
-          #    than judge on one shot.
-          if [ -n "$NOTES_TOKEN" ]; then expected=401; else expected=503; fi
-          code=""
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "$URL/api/notes" \
-              -H 'content-type: application/json' -d '{"body":"unauthenticated probe"}')
-            [ "$code" = "$expected" ] && break
-            case "$code" in
-              2*) break ;;  # a success here is a real failure; stop and report it
-            esac
-            echo "  attempt $attempt: got $code, waiting for $expected"
-            sleep 5
-          done
-          case "$code" in
-            "$expected")
-              if [ "$expected" = 401 ]; then
-                echo "Notebook is live and refuses unauthenticated writes (401)."
-              else
-                echo "Notebook has no passphrase configured and refuses writes (503)."
-              fi
-              ;;
-            2*) echo "::error::POST /api/notes without a passphrase returned $code. A public write endpoint must never accept anonymous writes."; fail=1 ;;
-            *) echo "::error::POST /api/notes returned $code, expected $expected. With NOTES_TOKEN set the Worker should answer 401; a 503 means the secret never reached it."; fail=1 ;;
-          esac
-
-          # 5. Lane B. Two things are asserted here and one is only reported.
+          # 4. Lane B. Two things are asserted here and one is only reported.
           #
           #    Asserted, because getting them wrong is our bug:
           #      - the route always answers with a parseable envelope carrying
@@ -282,7 +220,7 @@ jobs:
           check_gated /api/firms-fires FIRMS_MAP_KEY FIRMS
           check_gated /api/meteored-conditions METEORED_AFFILIATE_ID Meteored
 
-          # 6. Lane C. A Durable Object that fails to instantiate — a missing
+          # 5. Lane C. A Durable Object that fails to instantiate — a missing
           #    binding, an unregistered class, a migration that did not apply —
           #    shows up as a 500 here. Without this check that would deploy
           #    green and only surface as a feed that never connects.

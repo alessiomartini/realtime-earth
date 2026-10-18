@@ -72,12 +72,12 @@ These override convenience everywhere in this codebase.
 
 A **Notes** button on every page lets Alessio jot a comment or idea while
 actually using the site, from whichever page prompted it. It is not public
-feedback: writes require a passphrase (`NOTES_TOKEN`), the Worker
-(`worker/notes.ts`) fails closed if that token is not configured, and there
-is no way for a random visitor to read what was written. See
-`scripts/notes.md` for the full design, including why it is D1 rather than
-KV and why notes are queued in `localStorage` first so a failed request never
-loses a note.
+feedback: notes go to the shared `site-notes` Worker (repo
+`alessiomartini/site-notes`), where writing and reading both require the
+passphrase (`NOTES_TOKEN`) and it fails closed without it; there is no way for a
+random visitor to read what was written. See `scripts/notes.md` for the full
+design, including why notes are queued in `localStorage` first so a failed
+request never loses a note.
 
 ## Hosting model
 
@@ -215,8 +215,7 @@ scripts/check-bundle-secrets.mjs  "no secrets in the bundle" acceptance check
 ```
 
 See `ROADMAP.md` for what is left on this roadmap, known
-per-source blockers, and an undecided idea about a shared notes database
-across Alessio's sites.
+and per-source blockers.
 
 ## Order of work
 

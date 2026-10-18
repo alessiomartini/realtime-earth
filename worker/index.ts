@@ -12,7 +12,6 @@
  * visitor's page load is what makes a rate-limited source get hit.
  */
 
-import { handleNotes, type NotesEnv } from './notes.js';
 import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './proxy.js';
 import { handleBlitzortungProbe } from './blitzortung-probe.js';
 import { handleMeteoredProbe } from './meteored-probe.js';
@@ -22,7 +21,7 @@ import { handleLightningSocket, LightningRelay, type RelayEnv } from './lightnin
 // the runtime to find it.
 export { LightningRelay };
 
-export interface Env extends NotesEnv, ProxyEnv, RelayEnv {
+export interface Env extends ProxyEnv, RelayEnv {
   ASSETS: Fetcher;
 }
 
@@ -40,14 +39,6 @@ function json(body: unknown, status = 200): Response {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-
-    // The notebook: notes written while using the site, kept so they can be
-    // collected and acted on later. Protected, and refuses to write at all
-    // when no token is configured — an open write endpoint on a public origin
-    // is not something to leave running by accident.
-    if (url.pathname === '/api/notes' || url.pathname.startsWith('/api/notes/')) {
-      return handleNotes(request, env, url);
-    }
 
     if (url.pathname === '/api/health') {
       // Every value here is observed by this Worker at request time. Nothing is
