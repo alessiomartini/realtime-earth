@@ -16,6 +16,17 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [ ] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
 
 ## Idee
+- [ ] Osservatorio dei flussi del mondo (forse da far crescere qui, che è già un catalogo di feed live). Dati da tracciare:
+  - traffico marittimo
+  - traffico aereo
+  - traffico su gomma
+  - traffico su rotaia
+  - turismo e viaggi di lavoro
+  - uso di internet
+  - elettricità: quantità e fonti
+  - ambiente: aria, terreno, umidità, temperatura, vento, esposizione UV
+  - altro: …
+
 - [ ] Feedback centralizzato: un unico D1 + Worker condiviso fra tutti i siti (dettagli sotto, in "Decisioni e cose provate"). Priorità bassa, non implementare senza che Alessio lo chieda
 
 ## Decisioni e cose provate
@@ -95,5 +106,6 @@ passi 4-7 della roadmap sopra sono più urgenti. Non implementare senza che
 Alessio lo chieda esplicitamente.
 
 ## Log
+- 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
 - 2026-10-18: FUTURE-ARCHITECTURE.md unito in ROADMAP.md (protocollo unico)
 - 2026-10-15: creata la roadmap per Projects Overview
