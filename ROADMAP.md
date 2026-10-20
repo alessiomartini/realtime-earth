@@ -13,7 +13,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [ ] Lane C: relay AIS con Durable Object e modulo mappa (il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
 - [ ] Moduli restanti, sezione per sezione (stato delle fonti nella tabella "Verified source status" del README)
 - [ ] README completo con tabella delle fonti (licenza, lane, latenza)
-- [ ] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
+- [x] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
 
 ## Idee
 - [ ] Osservatorio dei flussi del mondo (forse da far crescere qui, che è già un catalogo di feed live). Dati da tracciare:
@@ -115,7 +115,21 @@ sito.
 passi 4-7 della roadmap sopra sono più urgenti. Non implementare senza che
 Alessio lo chieda esplicitamente.
 
+### Binance: errore onesto per i visitatori geo-bloccati (fatto il 2026-10-20)
+
+`src/modules/binance-geo.ts` classifica il fallimento: HTTP 451/403 o corpo con
+"restricted location" (dal backfill dei klines) danno "Binance is not reachable
+from your location (geo-restricted). Data unavailable." e fermano i tentativi;
+un WebSocket che dà errore o si chiude prima del primo messaggio dà un
+messaggio prudente ("restricts your location or the network blocked the
+connection"), perché il browser non espone lo status dell'handshake e un 451
+senza header CORS arriva come semplice TypeError. Limiti: non si può distinguere
+con certezza geo-blocco da rete offline; dopo il primo messaggio una chiusura
+resta un normale "stream closed". Verificato solo con test unitari e
+`check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
+
 ## Log
+- 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
 - 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
 - 2026-10-18: FUTURE-ARCHITECTURE.md unito in ROADMAP.md (protocollo unico)

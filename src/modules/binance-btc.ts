@@ -3,6 +3,7 @@ import { RingBuffer } from '../core/ring-buffer.js';
 import { register } from './registry.js';
 import { TimeChart } from '../ui/chart.js';
 import { el } from '../ui/dom.js';
+import { binanceFailureMessage, isGeoBlocked } from './binance-geo.js';
 
 /**
  * Bitcoin order flow — genuinely tick-by-tick, one point per executed trade.
@@ -11,8 +12,9 @@ import { el } from '../ui/dom.js';
  * "Service unavailable from a restricted location", from the verification
  * runner. `data-stream.binance.vision` (stream) and `data-api.binance.vision`
  * (history) are the market-data hosts and both were verified working, so those
- * are what the module uses. A visitor whose own country is restricted will
- * still see a connection error — which the card states rather than hides.
+ * are what the module uses. A visitor whose own country is restricted gets an
+ * explicit "not reachable from your location" message (see binance-geo.ts),
+ * never an endless "connecting".
  *
  * The chart opens with the last three hours of 1-minute closes from Binance's
  * own klines endpoint, then every subsequent point is one real trade arriving
@@ -46,6 +48,7 @@ class BinanceBtc extends BaseModule {
   #flushTimer: ReturnType<typeof setInterval> | null = null;
   #dirty = false;
   #backfilled = false;
+  #gotMessage = false;
 
   constructor() {
     super({
@@ -92,12 +95,13 @@ class BinanceBtc extends BaseModule {
 
     this.#socket.addEventListener('open', () => this.markOpen());
     this.#socket.addEventListener('message', (event) => this.#onMessage(event));
-    this.#socket.addEventListener('error', () =>
-      this.fail('the WebSocket connection failed — this venue may be unavailable from your location'),
-    );
+    this.#socket.addEventListener('error', () => this.#socketFailed());
     this.#socket.addEventListener('close', (event) => {
       if (event.wasClean) return;
-      this.fail(`the stream closed unexpectedly (code ${event.code})`);
+      // Before the first message this is almost always a refused handshake
+      // (geo-block); afterwards it is a genuine drop.
+      if (!this.#gotMessage) this.#socketFailed();
+      else this.fail(`the stream closed unexpectedly (code ${event.code})`);
     });
 
     // Ingest is decoupled from paint: trades land in the ring buffer as they
@@ -108,6 +112,12 @@ class BinanceBtc extends BaseModule {
       this.#dirty = false;
       this.#render();
     }, 250);
+  }
+
+  #socketFailed(): void {
+    // The browser hides the handshake status, so this is hedged, not certain.
+    const message = binanceFailureMessage({ network: true });
+    this.fail(message ?? 'the WebSocket connection failed');
   }
 
   protected closeStream(): void {
@@ -129,8 +139,14 @@ class BinanceBtc extends BaseModule {
     try {
       const response = await fetch(KLINES_URL);
       if (!response.ok) {
-        // History failing is not fatal: the live stream can still run, and the
-        // chart simply starts from now. The summary line says which happened.
+        // History failing is not fatal for most statuses: the live stream can
+        // still run. A geo-block, though, means the whole venue is closed to
+        // this visitor, so say so instead of spinning on reconnects.
+        const body = await response.text().catch(() => '');
+        const message = binanceFailureMessage({ status: response.status, body });
+        if (message !== null && isGeoBlocked({ status: response.status, body })) {
+          this.fail(message, { retry: false });
+        }
         return;
       }
       const rows = (await response.json()) as unknown[];
@@ -169,6 +185,7 @@ class BinanceBtc extends BaseModule {
       return;
     }
     const data = payload.data;
+    this.#gotMessage = true;
     const time = Number(data?.T);
     const price = Number(data?.p);
     const quantity = Number(data?.q);
