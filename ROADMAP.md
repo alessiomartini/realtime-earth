@@ -12,7 +12,8 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [ ] Lane B: proxy nel Worker, handler `scheduled`, KV
 - [ ] Lane C: relay AIS con Durable Object e modulo mappa (il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
 - [ ] Moduli restanti, sezione per sezione (stato delle fonti nella tabella "Verified source status" del README)
-- [ ] README completo con tabella delle fonti (licenza, lane, latenza)
+- [x] README completo con tabella delle fonti (licenza, lane, latenza)
+- [ ] Verificare le licenze delle fonti segnate "to verify" nel README (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
 - [x] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
 
 ## Idee
@@ -129,6 +130,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
+- 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
 - 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
