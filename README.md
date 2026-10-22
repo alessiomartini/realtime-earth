@@ -167,6 +167,54 @@ Note on where the probe runs: CI uses a US-based runner, so a geo-refusal there
 describes the runner's location, not necessarily a visitor's browser. Binance is
 the known case.
 
+## Data sources
+
+Every source the app uses or plans to use. Lanes are defined in [The three
+lanes](#the-three-lanes); reachability and CORS findings for each endpoint are in
+[Verified source status](#verified-source-status), not repeated here.
+
+How to read the table:
+
+- **Cadence** is what the module itself declares (`cadence` in its source) or,
+  for Worker-proxied sources, the cron in `wrangler.jsonc`. For sources not yet
+  wired it is "to verify" — no cadence is claimed without evidence.
+- **Licence / terms** marked **(verified)** was checked against the provider's own
+  page on 2026-10-22. Entries marked **(as declared in module)** are the string
+  the module shows on its card (`source.license`) and have not been independently
+  re-checked. Everything else is "to verify": do not rely on it.
+
+### Live (shipped modules)
+
+| Source | What it provides | Endpoint (host) | Lane | Typical latency / cadence | Licence / terms | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Binance | BTC/USDT trades, plus 180 one-minute klines of history | `data-stream.binance.vision` (WS), `data-api.binance.vision` (REST) | A | live; ~10–50 trades/s | Public market data, free for non-commercial use per Binance terms (as declared in module) | live (geo-restricted for some visitors; see status section) |
+| USGS Earthquake Hazards | Global earthquakes, past 24h then live | `earthquake.usgs.gov` | A | near-real-time; polled every 60 s | Public domain, U.S. Government work (verified: USGS-authored data is U.S. public domain; non-USGS material on USGS sites may not be) | live |
+| Open-Meteo | Surface weather model field on a zoomable grid (17 fields) | `api.open-meteo.com` | A | near-real-time; model output, polled every 10 min | CC BY 4.0; free API for non-commercial use only, under 10,000 calls/day, 5,000/hour, 600/minute (verified) | live |
+| Wikimedia EventStreams | Every edit to every Wikimedia wiki (`recentchange`) | `stream.wikimedia.org` | A | live; ~3–10 edits/s | CC0 1.0 (as declared in module; the EventStreams docs page does not state a data licence, so to verify). Service is meant for small-scale external tools. | live |
+| Blitzortung.org | Lightning strikes detected by a volunteer network | `ws1.blitzortung.org` (upstream), `/ws/lightning-strikes` (our relay) | C | live; continuous, bursty | Free for non-commercial use, with attribution (as declared in module). Their policy asks apps to serve their own clients from their own server, hence Lane C. | live |
+| GDELT Project | News articles indexed by GDELT DOC 2.0 (last hour, then refreshes) | `api.gdeltproject.org` | B | delayed; Worker refreshes every 15 min, index runs about 35–45 min behind real time | Open data, free for any use with attribution (as declared in module). API limit documented as one request every 5 s. | live |
+| Meteored (tiempo.com) | Current conditions for one locality | `api.tiempo.com` | B | delayed; Worker refreshes every 30 min | Requires a registered, activated account; used under their API terms (as declared in module); exact terms to verify | blocked (needs `METEORED_AFFILIATE_ID`) |
+| NASA FIRMS | Active fire detections (VIIRS SNPP NRT, world, last day) | `firms.modaps.eosdis.nasa.gov` | B | Worker refreshes hourly; satellite pass cadence to verify | to verify | blocked (needs free `FIRMS_MAP_KEY`; route registered, no module yet) |
+
+### Planned (verified reachable, not yet wired to a module)
+
+Status of each is in [Verified source status](#verified-source-status). Cadence
+and licence are "to verify" for all of them.
+
+| Source | What it provides | Endpoint (host) | Lane | Typical latency / cadence | Licence / terms | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Coinbase Exchange | Trade `matches` channel, second Bitcoin venue | `ws-feed.exchange.coinbase.com` | A | to verify | to verify | planned |
+| mempool.space | Unconfirmed transactions, fee bands, blocks | `mempool.space` | A | to verify | to verify | planned |
+| Ethereum public RPC (PublicNode) | Block number, base fee, gas used | `ethereum-rpc.publicnode.com` | A | to verify | to verify | planned |
+| RIPE RIS Live | BGP UPDATE stream | `ris-live.ripe.net` | A | to verify | to verify | planned |
+| airplanes.live | ADS-B aircraft positions | `api.airplanes.live` | A | to verify | to verify | planned |
+| adsb.lol, adsb.fi | ADS-B aircraft positions | `api.adsb.lol`, `opendata.adsb.fi` | B (no CORS header) | to verify | to verify | planned (alternatives to airplanes.live) |
+| OpenSky Network | ADS-B / Mode S states | `opensky-network.org` | B (CORS restricted to its own origin) | to verify | to verify | planned, rate-limited |
+| AIS Stream | Ship positions (AIS) | `stream.aisstream.io` | C | to verify | to verify | planned (needs API key; handshake verified) |
+| Carbon Intensity (UK) | Grid carbon intensity and generation mix | `api.carbonintensity.org.uk` | A | to verify | to verify | planned |
+| NOAA SWPC | Planetary K-index, GOES X-ray flux, real-time solar wind | `services.swpc.noaa.gov` | A | to verify | to verify | planned |
+| Stooq | Equity and index quotes (CSV) | `stooq.com` | B | to verify | to verify | blocked (API key issued only by email to `www@stooq.com`) |
+
 ## Deployment
 
 CI is `.github/workflows/deploy.yml`. It
