@@ -19,6 +19,15 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - [x] NOAA SWPC vento solare, velocità e Bz (`src/modules/swpc-wind.ts`, Lane A, dominio pubblico)
 - [x] README completo con tabella delle fonti (licenza, lane, latenza)
 - [ ] Verificare le licenze delle fonti segnate "to verify" nel README (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
+  - [ ] Coinbase Exchange: leggere i "Market Data Terms of Use" (`coinbase.com/legal/market_data`, risposta 403 dall'ambiente automatico), da un browser vero
+  - [ ] airplanes.live: leggere i termini dell'API (sfida anti-bot, 403 dall'ambiente automatico)
+  - [ ] mempool.space e PublicNode (RPC Ethereum): non dichiarano né licenza dei dati né limiti d'uso; valutare se scrivere a loro o usare un'alternativa con licenza esplicita
+  - [ ] RIPE RIS Live: chiedere (rislive@ripe.net) se i termini del RIPE Data Repository (solo ricerca, niente uso commerciale né ridistribuzione) valgano anche per RIS Live
+  - [ ] Meteored: leggere i termini specifici dell'API (nel dashboard JavaScript); i termini generali ammettono solo ridistribuzione non commerciale con citazione e link
+  - [ ] AIS Stream, Stooq, Binance (`binance.vision`), Blitzortung: nessuna pagina di termini leggibile; verificare a mano
+  - [ ] Wikimedia EventStreams: la licenza CC0 dichiarata nel modulo non è confermata da nessuna pagina del fornitore; correggere `source.license` in `src/modules/wikipedia-changes.ts` o trovare la fonte
+  - [ ] Decidere se adsb.fi (solo uso personale non commerciale) è accettabile per questo sito; adsb.lol (ODbL 1.0) sì con attribuzione
+  - [ ] FIRMS: la banda Earthdata annuncia che la consegna di nuovi dati Suomi NPP cessa il 2026-11-02; il percorso `VIIRS_SNPP_NRT` in `worker/proxy.ts` va verificato e probabilmente spostato su NOAA-20/21
 - [x] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
 
 ## Idee
@@ -37,6 +46,10 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [ ] Nota dal sito (2026-08-29, pagina Bitcoin): oltre a Binance, altri mercati di Bitcoin (es. Coinbase, Kraken, Bitstamp, che hanno feed WebSocket pubblici), anche affiancati per confrontare i prezzi
 
 ## Decisioni e cose provate
+
+### Audit delle licenze (2026-10-31)
+
+Letti i termini dei fornitori (README, sezione "Licence audit"). Esito: ok con attribuzione per Carbon Intensity (CC BY 4.0), FIRMS (CC0 salvo diversa indicazione, NASA citata come fonte), GDELT (citazione e link) e adsb.lol (ODbL); non utilizzabile senza accordo scritto OpenSky (uso commerciale o REST operativo); adsb.fi solo uso personale non commerciale. Tutto il resto resta "still unclear" perché la pagina dei termini non si lascia leggere da un ambiente automatico (403, sfida anti-bot, pagina solo JavaScript) o non dichiara nulla: non è stato dedotto niente. La voce generica resta aperta finché non sono risolte le sotto-voci.
 
 ### Dettaglio dei passi 4–7 (dal README)
 
@@ -135,8 +148,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
-- 2026-10-31: 🤖 Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live.
-- 2026-10-31: 🤖 Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
+- 2026-10-31: 🤖 Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
