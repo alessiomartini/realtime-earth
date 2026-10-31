@@ -16,6 +16,7 @@ import './weather-field.js'; //      earth     — Lane A, poll, 17 fields, zoom
 import './lightning-strikes.js'; //  earth     — Lane C, Durable Object relay, no history
 import './meteored-conditions.js'; // earth     — Lane B, key-gated, one locality
 import './swpc-kp.js'; //            earth     — Lane A, poll, ~1 week of 3-hour bins
+import './swpc-xray.js'; //          earth     — Lane A, poll, 24h of 1-minute X-ray flux
 import './wikipedia-changes.js'; //  noosphere — Lane A, SSE, no history available
 import './gdelt-news.js'; //         noosphere — Lane B, Worker proxy + KV, 1h history
 

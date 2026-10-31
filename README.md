@@ -196,6 +196,7 @@ How to read the table:
 | Meteored (tiempo.com) | Current conditions for one locality | `api.tiempo.com` | B | delayed; Worker refreshes every 30 min | Requires a registered, activated account; used under their API terms (as declared in module); exact terms to verify | blocked (needs `METEORED_AFFILIATE_ID`) |
 | NASA FIRMS | Active fire detections (VIIRS SNPP NRT, world, last day) | `firms.modaps.eosdis.nasa.gov` | B | Worker refreshes hourly; satellite pass cadence to verify | to verify | blocked (needs free `FIRMS_MAP_KEY`; route registered, no module yet) |
 | NOAA SWPC planetary K-index | Geomagnetic activity, 3-hour Kp bins, about a week of history | `services.swpc.noaa.gov` | A | near-real-time; polled every 5 min, source bins are 3 h (newest may be in progress) | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov: NWS/NOAA pages are public domain unless noted) | live |
+| NOAA SWPC GOES X-ray flux | Solar X-ray flux (0.1-0.8 nm), 24 h of 1-minute values; flare class | `services.swpc.noaa.gov` | A | near-real-time; polled every 60 s, source resolution 1 min; zero-flux minutes shown as gaps | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov) | live |
 
 ### Planned (verified reachable, not yet wired to a module)
 
@@ -213,7 +214,7 @@ and licence are "to verify" for all of them.
 | OpenSky Network | ADS-B / Mode S states | `opensky-network.org` | B (CORS restricted to its own origin) | to verify | to verify | planned, rate-limited |
 | AIS Stream | Ship positions (AIS) | `stream.aisstream.io` | C | to verify | to verify | planned (needs API key; handshake verified) |
 | Carbon Intensity (UK) | Grid carbon intensity and generation mix | `api.carbonintensity.org.uk` | A | to verify | to verify | planned |
-| NOAA SWPC (GOES X-ray, solar wind) | GOES X-ray flux, real-time solar wind (Kp index is live above) | `services.swpc.noaa.gov` | A | to verify | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov) | planned |
+| NOAA SWPC solar wind | Real-time solar wind speed and magnetic field | `services.swpc.noaa.gov` | A | to verify | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov) | planned |
 | Stooq | Equity and index quotes (CSV) | `stooq.com` | B | to verify | to verify | blocked (API key issued only by email to `www@stooq.com`) |
 
 ## Deployment

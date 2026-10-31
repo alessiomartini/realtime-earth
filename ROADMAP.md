@@ -15,6 +15,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [ ] Lane C: relay AIS con Durable Object e modulo mappa (il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
 - [ ] Moduli restanti, sezione per sezione (stato delle fonti nella tabella "Verified source status" del README)
   - [x] NOAA SWPC indice Kp planetario (`src/modules/swpc-kp.ts`, Lane A, dominio pubblico)
+  - [x] NOAA SWPC flusso di raggi X GOES (`src/modules/swpc-xray.ts`, Lane A, dominio pubblico)
 - [x] README completo con tabella delle fonti (licenza, lane, latenza)
 - [ ] Verificare le licenze delle fonti segnate "to verify" nel README (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
 - [x] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
@@ -133,7 +134,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
-- 2026-10-31: 🤖 Nuovo modulo Lane A: indice Kp di NOAA SWPC (storia di ~1 settimana, parser con test); riga README spostata fra le fonti live.
+- 2026-10-31: 🤖 Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana) e raggi X GOES (24 h, minuti senza misura come buchi), parser con test; righe README spostate fra le fonti live.
 - 2026-10-31: 🤖 Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
