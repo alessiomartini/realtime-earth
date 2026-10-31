@@ -25,9 +25,9 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - [ ] RIPE RIS Live: chiedere (rislive@ripe.net) se i termini del RIPE Data Repository (solo ricerca, niente uso commerciale né ridistribuzione) valgano anche per RIS Live
   - [ ] Meteored: leggere i termini specifici dell'API (nel dashboard JavaScript); i termini generali ammettono solo ridistribuzione non commerciale con citazione e link
   - [ ] AIS Stream, Stooq, Binance (`binance.vision`), Blitzortung: nessuna pagina di termini leggibile; verificare a mano
-  - [ ] Wikimedia EventStreams: la licenza CC0 dichiarata nel modulo non è confermata da nessuna pagina del fornitore; correggere `source.license` in `src/modules/wikipedia-changes.ts` o trovare la fonte
+  - [ ] Wikimedia EventStreams: `source.license` del modulo ora dice che nessuna licenza dei dati è dichiarata dal fornitore (non più CC0); trovare una pagina del fornitore che fissi la licenza e aggiornarla
   - [ ] Decidere se adsb.fi (solo uso personale non commerciale) è accettabile per questo sito; adsb.lol (ODbL 1.0) sì con attribuzione
-  - [ ] FIRMS: la banda Earthdata annuncia che la consegna di nuovi dati Suomi NPP cessa il 2026-11-02; il percorso `VIIRS_SNPP_NRT` in `worker/proxy.ts` va verificato e probabilmente spostato su NOAA-20/21
+  - [x] FIRMS: confermato dal blog del team FIRMS (2026-10-27): la produzione di nuovi dati Suomi NPP cessa il 2026-11-02 alle 13:00 UTC; la fonte passa a `VIIRS_NOAA20_NRT` (NOAA-21 resta un'alternativa equivalente)
 - [x] Binance: errore onesto per i visitatori geo-bloccati invece di dare per scontato il workaround
 
 ## Idee
@@ -148,7 +148,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
-- 2026-10-31: 🤖 Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
+- 2026-10-31: 🤖 FIRMS passa da VIIRS SNPP a NOAA-20 (Suomi NPP cessa il 2026-11-02, confermato dal blog FIRMS); licenza Wikimedia nel modulo resa non-CC0 finché non confermata. Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
