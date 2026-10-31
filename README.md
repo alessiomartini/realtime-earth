@@ -195,6 +195,7 @@ How to read the table:
 | GDELT Project | News articles indexed by GDELT DOC 2.0 (last hour, then refreshes) | `api.gdeltproject.org` | B | delayed; Worker refreshes every 15 min, index runs about 35–45 min behind real time | Open data, free for any use with attribution (as declared in module). API limit documented as one request every 5 s. | live |
 | Meteored (tiempo.com) | Current conditions for one locality | `api.tiempo.com` | B | delayed; Worker refreshes every 30 min | Requires a registered, activated account; used under their API terms (as declared in module); exact terms to verify | blocked (needs `METEORED_AFFILIATE_ID`) |
 | NASA FIRMS | Active fire detections (VIIRS SNPP NRT, world, last day) | `firms.modaps.eosdis.nasa.gov` | B | Worker refreshes hourly; satellite pass cadence to verify | to verify | blocked (needs free `FIRMS_MAP_KEY`; route registered, no module yet) |
+| NOAA SWPC planetary K-index | Geomagnetic activity, 3-hour Kp bins, about a week of history | `services.swpc.noaa.gov` | A | near-real-time; polled every 5 min, source bins are 3 h (newest may be in progress) | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov: NWS/NOAA pages are public domain unless noted) | live |
 
 ### Planned (verified reachable, not yet wired to a module)
 
@@ -212,7 +213,7 @@ and licence are "to verify" for all of them.
 | OpenSky Network | ADS-B / Mode S states | `opensky-network.org` | B (CORS restricted to its own origin) | to verify | to verify | planned, rate-limited |
 | AIS Stream | Ship positions (AIS) | `stream.aisstream.io` | C | to verify | to verify | planned (needs API key; handshake verified) |
 | Carbon Intensity (UK) | Grid carbon intensity and generation mix | `api.carbonintensity.org.uk` | A | to verify | to verify | planned |
-| NOAA SWPC | Planetary K-index, GOES X-ray flux, real-time solar wind | `services.swpc.noaa.gov` | A | to verify | to verify | planned |
+| NOAA SWPC (GOES X-ray, solar wind) | GOES X-ray flux, real-time solar wind (Kp index is live above) | `services.swpc.noaa.gov` | A | to verify | Public domain, U.S. Government work (verified: weather.gov/disclaimer, linked from swpc.noaa.gov) | planned |
 | Stooq | Equity and index quotes (CSV) | `stooq.com` | B | to verify | to verify | blocked (API key issued only by email to `www@stooq.com`) |
 
 ## Deployment
