@@ -9,7 +9,9 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [x] Scaffold: Vite + TS, Worker, deploy in CI
 - [x] Contratto dei moduli, registry, lifecycle manager
 - [x] Primi quattro feed live
-- [ ] Lane B: proxy nel Worker, handler `scheduled`, KV
+- [x] Lane B: proxy nel Worker, handler `scheduled`, KV (codice e test completi: `worker/proxy.ts`, `worker/proxy-flow.test.ts`)
+  - [ ] Controllare che l'id del namespace `FEED_CACHE` in `wrangler.jsonc` sia quello reale dell'account Cloudflare di Alessio
+  - [ ] Impostare i secret `FIRMS_MAP_KEY` e `METEORED_AFFILIATE_ID` (servono le chiavi di Alessio)
 - [ ] Lane C: relay AIS con Durable Object e modulo mappa (il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
 - [ ] Moduli restanti, sezione per sezione (stato delle fonti nella tabella "Verified source status" del README)
 - [x] README completo con tabella delle fonti (licenza, lane, latenza)
@@ -35,7 +37,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 
 ### Dettaglio dei passi 4–7 (dal README)
 
-Steps 4–7 are not done yet:
+Steps 4–7 (step 4, Lane B, is implemented; see the code in `worker/proxy.ts`):
 
 4. Lane B: Worker proxy route pattern, `scheduled` handler, KV storage, and
    one proxied module.
@@ -130,6 +132,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
+- 2026-10-31: 🤖 Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
