@@ -116,6 +116,7 @@ passi 4-7 della roadmap sopra sono più urgenti. Non implementare senza che
 Alessio lo chieda esplicitamente.
 
 ## Log
+- 2026-11-06: widget note v2 canonico (public/notes-widget.js) al posto del notebook (migra realtime-earth.notes.queue); tolti notebook.ts e CSS.
 - 2026-10-19: notebook spostato nel backend unico `site-notes`; tolto `/api/notes` dal worker; poi solo scrittura, niente token (le legge Claude dal D1); note del sito portate nel ROADMAP (altri mercati di Bitcoin nelle Idee); le note mandano l'autore (`?sono-alessio` segna il browser di Alessio, le altre sono di visitatori); installabile come app a sé dal telefono (manifest con nome, icona e perimetro propri)
 - 2026-10-18: aggiunte le idee da IDEE.md (protocollo unico)
 - 2026-10-18: FUTURE-ARCHITECTURE.md unito in ROADMAP.md (protocollo unico)

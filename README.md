@@ -70,7 +70,7 @@ These override convenience everywhere in this codebase.
 
 ## The notebook
 
-A **Notes** button on every page lets Alessio jot a comment or idea while
+A **Feedback** button (`public/notes-widget.js`, the canonical site-notes widget) on every page lets Alessio jot a comment or idea while
 actually using the site, from whichever page prompted it. Notes go to the
 shared `site-notes` Worker (repo `alessiomartini/site-notes`), which only accepts
 new notes: nothing can be read back over HTTP, so no visitor can see what was
