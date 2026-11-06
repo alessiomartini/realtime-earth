@@ -199,7 +199,12 @@ export function shapeGdelt(body: string): Shaped {
  * column is invented, and a timestamp is only reported when the columns that
  * carry one are actually present.
  */
-const FIRMS_DATASET = 'VIIRS_SNPP_NRT';
+/**
+ * NOAA-20 VIIRS, not Suomi NPP: FIRMS stops producing new Suomi NPP data at
+ * 13:00 UTC on 2026-11-02 and names NOAA-20 and NOAA-21 as the drop-in
+ * replacements (FIRMS Team blog, 2026-10-27).
+ */
+const FIRMS_DATASET = 'VIIRS_NOAA20_NRT';
 
 export function parseCsv(body: string): Array<Record<string, string>> {
   const lines = body.split('\n').filter((line) => line.trim() !== '');

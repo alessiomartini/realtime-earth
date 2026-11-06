@@ -114,7 +114,7 @@ const ENDPOINTS = [
   { id: 'swpc-xray', kind: 'rest', expectedLane: 'A', url: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', note: 'GOES X-ray flux' },
   { id: 'usgs-hour', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson', note: 'keyless, CORS-open' },
   { id: 'usgs-day', kind: 'rest', expectedLane: 'A', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson', note: 'keyless, CORS-open' },
-  { id: 'firms', kind: 'rest', expectedLane: 'B', url: 'https://firms.modaps.eosdis.nasa.gov/api/area/csv/MAP_KEY_PLACEHOLDER/VIIRS_SNPP_NRT/world/1', note: 'needs MAP_KEY; 401/403 without one is the expected result', needsKey: true },
+  { id: 'firms', kind: 'rest', expectedLane: 'B', url: 'https://firms.modaps.eosdis.nasa.gov/api/area/csv/MAP_KEY_PLACEHOLDER/VIIRS_NOAA20_NRT/world/1', note: 'needs MAP_KEY; 401/403 without one is the expected result', needsKey: true },
 
   // --- Section 4: collective information flows ---
   { id: 'wikimedia-sse', kind: 'sse', expectedLane: 'A', url: 'https://stream.wikimedia.org/v2/stream/recentchange', note: 'Server-Sent Events, NOT WebSocket' },

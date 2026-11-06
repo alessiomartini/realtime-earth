@@ -73,7 +73,7 @@ class WikipediaChanges extends BaseModule {
       source: {
         name: 'Wikimedia EventStreams',
         url: 'https://stream.wikimedia.org/?doc',
-        license: 'CC0 1.0',
+        license: 'No data licence stated by Wikimedia (EventStreams terms point to the Wikimedia Terms of Use)',
         attribution: 'Wikimedia Foundation',
       },
     });

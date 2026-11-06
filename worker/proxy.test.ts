@@ -133,6 +133,14 @@ describe('the source registry', () => {
     expect(proxySourceById('not-a-feed')).toBeUndefined();
   });
 
+  it('reads FIRMS from NOAA-20, since Suomi NPP production ends on 2026-11-02', () => {
+    const source = proxySourceById('firms-fires');
+    expect(source?.publicUrl).toContain('VIIRS_NOAA20_NRT');
+    expect(source?.publicUrl).not.toContain('SNPP');
+    const built = source?.buildUrl({ FIRMS_MAP_KEY: 'k' });
+    expect(built && 'url' in built && built.url).toContain('/VIIRS_NOAA20_NRT/');
+  });
+
   it('never puts a key in the URL it is willing to publish', () => {
     // `publicUrl` is echoed to every visitor. If a secret can reach it, the
     // "zero keys in the client bundle" criterion is satisfied and defeated at
