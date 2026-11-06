@@ -148,6 +148,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
+- 2026-11-06: widget note v2 canonico (public/notes-widget.js) al posto del notebook (migra realtime-earth.notes.queue); tolti notebook.ts e CSS.
 - 2026-10-31: 🤖 FIRMS passa da VIIRS SNPP a NOAA-20 (Suomi NPP cessa il 2026-11-02, confermato dal blog FIRMS); licenza Wikimedia nel modulo resa non-CC0 finché non confermata. Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
 - 2026-10-20: 🤖 Binance: messaggio onesto di errore per i visitatori geo-bloccati (451/403, handshake WebSocket rifiutato), con test unitari

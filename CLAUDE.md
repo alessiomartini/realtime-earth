@@ -20,7 +20,7 @@ Vite/TypeScript realtime-earth application with a worker and Cloudflare tooling.
 - Keep secrets out of source and generated bundles; use local fake data.
 - Do not deploy; run `npm run deploy` only with explicit approval.
 - Inspect `git diff` and report the exact checks run before committing.
-- The notebook (`src/ui/notebook.ts`) only writes to the shared `site-notes` Worker
+- The notes widget (`public/notes-widget.js`, canonical copy in `site-notes/widget`) only writes to the shared `site-notes` Worker
   (repo `alessiomartini/site-notes`, write-only, no token). Notes are read by Claude
   from the D1 (procedure in that repo's CLAUDE.md), never by the page.
 
