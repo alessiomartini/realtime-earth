@@ -18,7 +18,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - [x] NOAA SWPC flusso di raggi X GOES (`src/modules/swpc-xray.ts`, Lane A, dominio pubblico)
   - [x] NOAA SWPC vento solare, velocità e Bz (`src/modules/swpc-wind.ts`, Lane A, dominio pubblico)
 - [x] README completo con tabella delle fonti (licenza, lane, latenza)
-- [ ] Verificare le licenze delle fonti segnate "to verify" nel README (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
+- [ ] Verificare le licenze delle fonti segnate "to verify" nel README (2026-11-07: seconda lettura automatica, nessun nuovo termine leggibile tranne Wikimedia; restano le sotto-voci a mano) (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
   - [ ] Coinbase Exchange: leggere i "Market Data Terms of Use" (`coinbase.com/legal/market_data`, risposta 403 dall'ambiente automatico), da un browser vero
   - [ ] airplanes.live: leggere i termini dell'API (sfida anti-bot, 403 dall'ambiente automatico)
   - [ ] mempool.space e PublicNode (RPC Ethereum): non dichiarano né licenza dei dati né limiti d'uso; valutare se scrivere a loro o usare un'alternativa con licenza esplicita
@@ -51,6 +51,8 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 ### Audit delle licenze (2026-10-31)
 
 Letti i termini dei fornitori (README, sezione "Licence audit"). Esito: ok con attribuzione per Carbon Intensity (CC BY 4.0), FIRMS (CC0 salvo diversa indicazione, NASA citata come fonte), GDELT (citazione e link) e adsb.lol (ODbL); non utilizzabile senza accordo scritto OpenSky (uso commerciale o REST operativo); adsb.fi solo uso personale non commerciale. Tutto il resto resta "still unclear" perché la pagina dei termini non si lascia leggere da un ambiente automatico (403, sfida anti-bot, pagina solo JavaScript) o non dichiara nulla: non è stato dedotto niente. La voce generica resta aperta finché non sono risolte le sotto-voci.
+
+Seconda passata (2026-11-07): Coinbase e airplanes.live ancora 403, Stooq e dashboard Meteored senza testo, AIS Stream e Blitzortung riletti senza licenza né attribuzione dichiarate. Wikimedia: `dumps.wikimedia.org/legal.html` assegna CC0 solo a dati strutturati Wikidata e dataset Analytics, non cita EventStreams: il modulo resta senza CC0. Nessuna incompatibilità nuova; le sotto-voci restano aperte perché servono un browser vero o una mail ai fornitori.
 
 ### Dettaglio dei passi 4–7 (dal README)
 
@@ -149,7 +151,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
 ## Log
-- 2026-11-07: decisioni sulle licenze: adsb.fi accettato (sito personale, non commerciale); OpenSky: chiesto il permesso per email.
+- 2026-11-07: decisioni sulle licenze: adsb.fi accettato (sito personale, non commerciale); OpenSky: chiesto il permesso per email. 🤖 Seconda lettura automatica delle licenze "to verify": solo Wikimedia ha dato un dato nuovo (CC0 non applicabile a EventStreams), il resto resta da verificare a mano.
 - 2026-11-06: widget note v2 canonico (public/notes-widget.js) al posto del notebook (migra realtime-earth.notes.queue); tolti notebook.ts e CSS.
 - 2026-10-31: 🤖 FIRMS passa da VIIRS SNPP a NOAA-20 (Suomi NPP cessa il 2026-11-02, confermato dal blog FIRMS); licenza Wikimedia nel modulo resa non-CC0 finché non confermata. Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"
