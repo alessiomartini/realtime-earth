@@ -12,7 +12,8 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
 - [x] Lane B: proxy nel Worker, handler `scheduled`, KV (codice e test completi: `worker/proxy.ts`, `worker/proxy-flow.test.ts`)
   - [ ] Controllare che l'id del namespace `FEED_CACHE` in `wrangler.jsonc` sia quello reale dell'account Cloudflare di Alessio
   - [ ] Impostare i secret `FIRMS_MAP_KEY` e `METEORED_AFFILIATE_ID` (servono le chiavi di Alessio)
-- [ ] Lane C: relay AIS con Durable Object e modulo mappa (il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
+- [x] Lane C: relay AIS con Durable Object e modulo mappa (codice e test completi: `worker/ais-relay.ts`, `src/modules/ais-vessels.ts`; il relay Blitzortung in `worker/lightning-relay.ts` è il precedente da seguire)
+  - [ ] Impostare il secret AISSTREAM_API_KEY e fare il deploy (Alessio)
 - [ ] Moduli restanti, sezione per sezione (stato delle fonti nella tabella "Verified source status" del README)
   - [x] NOAA SWPC indice Kp planetario (`src/modules/swpc-kp.ts`, Lane A, dominio pubblico)
   - [x] NOAA SWPC flusso di raggi X GOES (`src/modules/swpc-xray.ts`, Lane A, dominio pubblico)
@@ -150,8 +151,10 @@ con certezza geo-blocco da rete offline; dopo il primo messaggio una chiusura
 resta un normale "stream closed". Verificato solo con test unitari e
 `check`/`build`: nessuna prova in browser (Playwright non è nelle dipendenze).
 
+Relay AIS (2026-11-07): `AisRelay` non fa nulla senza il secret `AISSTREAM_API_KEY`: niente connessione upstream, un GET semplice su `/ws/ais-vessels` risponde 200 con `enabled: false` e nessuna nave, e il WebSocket manda `upstream: disabled` (il modulo lo dice invece di mostrare un mare vuoto). Resta inattivo finché Alessio esegue `wrangler secret put AISSTREAM_API_KEY` e fa il deploy (la migrazione v2 registra la classe). Scelte: BoundingBox mondiale e solo `PositionReport`; tetto 3000 navi e TTL 15 minuti; aggiornamenti ai browser a lotti ogni 3 s, non un messaggio per nave; connessione upstream aperta dal primo spettatore e chiusa all'ultimo, come per i fulmini. Licenza dei dati ancora non dichiarata dal fornitore (resta nelle sotto-voci da verificare).
+
 ## Log
-- 2026-11-07: decisioni sulle licenze: adsb.fi accettato (sito personale, non commerciale); OpenSky: chiesto il permesso per email. 🤖 Seconda lettura automatica delle licenze "to verify": solo Wikimedia ha dato un dato nuovo (CC0 non applicabile a EventStreams), il resto resta da verificare a mano.
+- 2026-11-07: 🤖 Lane C AIS: Durable Object `AisRelay` (una sola connessione a aisstream.io, insieme di posizioni limitato per numero e TTL, snapshot all'arrivo e aggiornamenti a lotti), modulo mappa `ais-vessels`, test con dati finti, controllo nel deploy; inattivo finché manca il secret. decisioni sulle licenze: adsb.fi accettato (sito personale, non commerciale); OpenSky: chiesto il permesso per email. 🤖 Seconda lettura automatica delle licenze "to verify": solo Wikimedia ha dato un dato nuovo (CC0 non applicabile a EventStreams), il resto resta da verificare a mano.
 - 2026-11-06: widget note v2 canonico (public/notes-widget.js) al posto del notebook (migra realtime-earth.notes.queue); tolti notebook.ts e CSS.
 - 2026-10-31: 🤖 FIRMS passa da VIIRS SNPP a NOAA-20 (Suomi NPP cessa il 2026-11-02, confermato dal blog FIRMS); licenza Wikimedia nel modulo resa non-CC0 finché non confermata. Audit delle licenze delle fonti (README: nuova sezione "Licence audit"): 4 ok con attribuzione, OpenSky non utilizzabile, il resto ancora da chiarire; aperte le sotto-voci nel ROADMAP. Nuovi moduli Lane A da NOAA SWPC: indice Kp (storia di ~1 settimana), raggi X GOES (24 h, minuti senza misura come buchi) e vento solare (24 h, solo righe `active`), parser con test; righe README spostate fra le fonti live. Lane B verificata già presente nel codice (proxy, `scheduled`, KV); aggiunti test di flusso con KV finto e fetch simulato (hit/miss, errore con dato vecchio, 429, cron) e spuntata la voce.
 - 2026-10-22: 🤖 README: sezione "Data sources" con tabella di tutte le fonti (lane, cadenza, licenza, stato); licenze verificate sul sito del fornitore solo per USGS e Open-Meteo, le altre dichiarate nei moduli o "to verify"

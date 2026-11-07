@@ -52,12 +52,21 @@
   // visitors would open a hundred upstream connections to a volunteer-run
   // detection network — precisely what the relay exists to prevent.
   "durable_objects": {
-    "bindings": [{ "name": "LIGHTNING_RELAY", "class_name": "LightningRelay" }]
+    "bindings": [
+      { "name": "LIGHTNING_RELAY", "class_name": "LightningRelay" },
+      // AIS ship positions. Inactive until the secret AISSTREAM_API_KEY is set
+      // (`wrangler secret put AISSTREAM_API_KEY`); without it the relay answers
+      // "disabled" and opens no upstream connection.
+      { "name": "AIS_RELAY", "class_name": "AisRelay" }
+    ]
   },
 
   // The relay persists nothing; it forwards a live stream and forgets it. The
   // migration is still required to register the class with the runtime.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LightningRelay"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LightningRelay"] },
+    { "tag": "v2", "new_sqlite_classes": ["AisRelay"] }
+  ],
 
   "observability": {
     "enabled": true
