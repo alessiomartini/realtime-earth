@@ -77,7 +77,8 @@ for (const id of ids) {
   const errorVisible = await page.locator('.card__error').isVisible();
   const errorText = errorVisible ? (await page.locator('.card__error').innerText()).trim() : null;
 
-  const readout = await page.locator('.readout').innerText();
+  // meteored-conditions has a second .readout (readout--wide): pick the status one.
+  const readout = await page.locator('.readout', { hasText: /received live/i }).first().innerText();
   const live = Number(readout.match(/RECEIVED LIVE\n([\d,]+)/i)?.[1]?.replace(/,/g, '') ?? '0');
   const history = readout.match(/HISTORY LOADED\n(.+)/i)?.[1]?.trim() ?? 'none';
   const age = readout.match(/AGE OF LAST DATUM\n(.+)/i)?.[1]?.trim() ?? '—';
