@@ -14,6 +14,7 @@ import './binance-btc.js'; //        markets   — Lane A, WebSocket + klines hi
 import './usgs-earthquakes.js'; //   earth     — Lane A, poll + 24h history
 import './weather-field.js'; //      earth     — Lane A, poll, 17 fields, zoomable grid
 import './lightning-strikes.js'; //  earth     — Lane C, Durable Object relay, no history
+import './ais-vessels.js'; //     earth     — Lane C, Durable Object relay, key-gated, no history
 import './meteored-conditions.js'; // earth     — Lane B, key-gated, one locality
 import './swpc-kp.js'; //            earth     — Lane A, poll, ~1 week of 3-hour bins
 import './swpc-xray.js'; //          earth     — Lane A, poll, 24h of 1-minute X-ray flux

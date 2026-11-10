@@ -16,12 +16,13 @@ import { handleProxy, proxySourceById, refreshForCron, type ProxyEnv } from './p
 import { handleBlitzortungProbe } from './blitzortung-probe.js';
 import { handleMeteoredProbe } from './meteored-probe.js';
 import { handleLightningSocket, LightningRelay, type RelayEnv } from './lightning-relay.js';
+import { AisRelay, handleAisSocket, type AisEnv } from './ais-relay.js';
 
 // The Durable Object class has to be exported from the Worker's entrypoint for
 // the runtime to find it.
-export { LightningRelay };
+export { LightningRelay, AisRelay };
 
-export interface Env extends ProxyEnv, RelayEnv {
+export interface Env extends ProxyEnv, RelayEnv, AisEnv {
   ASSETS: Fetcher;
 }
 
@@ -85,6 +86,12 @@ export default {
     // of applications that use their volunteers' data.
     if (url.pathname === '/ws/lightning-strikes') {
       return handleLightningSocket(request, env);
+    }
+
+    // Lane C. AIS Stream forbids browser connections and allows three per
+    // account, so one Durable Object holds the single upstream socket.
+    if (url.pathname === '/ws/ais-vessels') {
+      return handleAisSocket(request, env);
     }
 
     // Lane B. Every proxied source is served from `/api/<module-id>` by the

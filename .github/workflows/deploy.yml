@@ -251,5 +251,17 @@ jobs:
               ;;
           esac
 
+          # The AIS relay answers a plain GET with a JSON snapshot (200), whether
+          # or not AISSTREAM_API_KEY is set; a 5xx means the Durable Object or
+          # its migration did not apply.
+          code=$(curl -sS -o /tmp/ais.json -w '%{http_code}' --max-time 30 "$URL/ws/ais-vessels")
+          if [ "$code" = 200 ] && grep -q '"enabled"' /tmp/ais.json; then
+            echo "AIS relay is routed and instantiates (snapshot: $(tr -d '\n ' < /tmp/ais.json | cut -c1-120))."
+          else
+            echo "::error::/ws/ais-vessels returned $code, expected a 200 JSON snapshot."
+            cat /tmp/ais.json
+            fail=1
+          fi
+
           if [ "$fail" = 0 ]; then echo "Deployed origin serves assets and Worker routes correctly."; fi
           exit $fail
