@@ -28,6 +28,12 @@ const GDELT_BODY = JSON.stringify({
   articles: [{ url: 'https://example.org/a', title: 'A', seendate: '20261031T101500Z', domain: 'example.org' }],
 });
 
+const ADSB_BODY = JSON.stringify({
+  now: 1794657546010,
+  total: 1,
+  ac: [{ hex: '398566', flight: 'HOP51BV ', t: 'E190', alt_baro: 36625, gs: 430.9, track: 159.63, lat: 50.1, lon: 8.2, seen_pos: 0.4 }],
+});
+
 const gdelt = proxySourceById('gdelt-news')!;
 
 function mockFetch(impl: () => Response | Promise<Response>) {
@@ -152,12 +158,18 @@ describe('refreshSource', () => {
 describe('refreshForCron', () => {
   it('refreshes only the sources whose cron fired', async () => {
     const kv = fakeKv();
-    const spy = mockFetch(() => new Response(GDELT_BODY));
+    // GDELT and adsb.lol share one cron slot, so both are due; FIRMS and
+    // Meteored (other slots) must stay untouched.
+    const spy = vi.fn(async (url: string) =>
+      new Response(String(url).includes('adsb.lol') ? ADSB_BODY : GDELT_BODY),
+    );
+    vi.stubGlobal('fetch', spy);
     const log = await refreshForCron(gdelt.cron, { FEED_CACHE: kv });
-    expect(log).toHaveLength(1);
-    expect(log[0]).toContain('gdelt-news');
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect([...kv.store.keys()]).toEqual(['feed:gdelt-news']);
+    expect(log).toHaveLength(2);
+    expect(log.join(' ')).toContain('gdelt-news');
+    expect(log.join(' ')).toContain('adsb-lol-aircraft: 1 records');
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect([...kv.store.keys()].sort()).toEqual(['feed:adsb-lol-aircraft', 'feed:gdelt-news']);
   });
 
   it('does nothing for an unknown cron', async () => {
