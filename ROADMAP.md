@@ -45,6 +45,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - altro: …
 
 - [x] Feedback centralizzato: un unico D1 + Worker condiviso fra tutti i siti (fatto il 2026-10-19: `site-notes`, dettagli sotto)
+- [ ] Idea (Google Tasks, 2026-11-14, parole di Alessio): "Fare una machine learning model che faccia clustering quindi credo sia anzi propice learning con i dati dei voli in tutto il mondo e con i dati delle navi di tutto il mondo"
 - [ ] Nota dal sito (2026-08-29, pagina Bitcoin): oltre a Binance, altri mercati di Bitcoin (es. Coinbase, Kraken, Bitstamp, che hanno feed WebSocket pubblici), anche affiancati per confrontare i prezzi
 
 ## Decisioni e cose provate
