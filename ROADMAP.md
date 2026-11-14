@@ -18,6 +18,7 @@ Unico file per todo, idee, decisioni e diario, letto da Projects Overview
   - [x] NOAA SWPC indice Kp planetario (`src/modules/swpc-kp.ts`, Lane A, dominio pubblico)
   - [x] NOAA SWPC flusso di raggi X GOES (`src/modules/swpc-xray.ts`, Lane A, dominio pubblico)
   - [x] NOAA SWPC vento solare, velocità e Bz (`src/modules/swpc-wind.ts`, Lane A, dominio pubblico)
+  - [x] Intensità di carbonio e mix di generazione della rete GB (`src/modules/carbon-intensity.ts`, Lane A, CC BY 4.0 con attribuzione)
 - [x] README completo con tabella delle fonti (licenza, lane, latenza)
 - [ ] Verificare le licenze delle fonti segnate "to verify" nel README (2026-11-07: seconda lettura automatica, nessun nuovo termine leggibile tranne Wikimedia; restano le sotto-voci a mano) (fonti pianificate; Wikimedia CC0, FIRMS, Meteored e le licenze dichiarate nei moduli senza controllo sul sito del fornitore)
   - [ ] Coinbase Exchange: leggere i "Market Data Terms of Use" (`coinbase.com/legal/market_data`, risposta 403 dall'ambiente automatico), da un browser vero
@@ -155,6 +156,7 @@ resta un normale "stream closed". Verificato solo con test unitari e
 Relay AIS (2026-11-07): `AisRelay` non fa nulla senza il secret `AISSTREAM_API_KEY`: niente connessione upstream, un GET semplice su `/ws/ais-vessels` risponde 200 con `enabled: false` e nessuna nave, e il WebSocket manda `upstream: disabled` (il modulo lo dice invece di mostrare un mare vuoto). Resta inattivo finché Alessio esegue `wrangler secret put AISSTREAM_API_KEY` e fa il deploy (la migrazione v2 registra la classe). Scelte: BoundingBox mondiale e solo `PositionReport`; tetto 3000 navi e TTL 15 minuti; aggiornamenti ai browser a lotti ogni 3 s, non un messaggio per nave; connessione upstream aperta dal primo spettatore e chiusa all'ultimo, come per i fulmini. Licenza dei dati ancora non dichiarata dal fornitore (resta nelle sotto-voci da verificare).
 
 ## Log
+- 2026-11-14: 🤖 Nuovo modulo Lane A: intensità di carbonio e mix di generazione della rete elettrica GB (Carbon Intensity API, CC BY 4.0), con parser, test e riga README spostata fra le fonti live.
 - 2026-11-10: PR #20 (Lane C AIS) unita su main su decisione di Alessio, deploy riuscito; il modulo dice "AISSTREAM_API_KEY is not configured" finché Alessio non mette il secret. Corretto verify-live (meteored ha due `.readout`, falliva dal 7/11).
 - 2026-11-07: 🤖 Lane C AIS: Durable Object `AisRelay` (una sola connessione a aisstream.io, insieme di posizioni limitato per numero e TTL, snapshot all'arrivo e aggiornamenti a lotti), modulo mappa `ais-vessels`, test con dati finti, controllo nel deploy; inattivo finché manca il secret. decisioni sulle licenze: adsb.fi accettato (sito personale, non commerciale); OpenSky: chiesto il permesso per email. 🤖 Seconda lettura automatica delle licenze "to verify": solo Wikimedia ha dato un dato nuovo (CC0 non applicabile a EventStreams), il resto resta da verificare a mano.
 - 2026-11-06: widget note v2 canonico (public/notes-widget.js) al posto del notebook (migra realtime-earth.notes.queue); tolti notebook.ts e CSS.
