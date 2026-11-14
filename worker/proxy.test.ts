@@ -5,6 +5,7 @@ import {
   parseGdeltSeenDate,
   proxyCronExpressions,
   proxySourceById,
+  shapeAdsbLol,
   shapeFirms,
   shapeGdelt,
 } from './proxy.js';
@@ -145,7 +146,7 @@ describe('the source registry', () => {
     // `publicUrl` is echoed to every visitor. If a secret can reach it, the
     // "zero keys in the client bundle" criterion is satisfied and defeated at
     // the same time — the key just leaves through the response instead.
-    for (const id of ['gdelt-news', 'firms-fires', 'meteored-conditions']) {
+    for (const id of ['gdelt-news', 'adsb-lol-aircraft', 'firms-fires', 'meteored-conditions']) {
       expect(proxySourceById(id)?.publicUrl).not.toMatch(/[?/]([A-Za-z0-9]{20,})/);
     }
     expect(proxySourceById('firms-fires')?.publicUrl).toContain('<MAP_KEY>');
@@ -177,8 +178,74 @@ describe('the source registry', () => {
   it('declares a cron for every source, so nothing is registered and never refreshed', () => {
     const crons = proxyCronExpressions();
     expect(crons.length).toBeGreaterThan(0);
-    for (const id of ['gdelt-news', 'firms-fires', 'meteored-conditions']) {
+    for (const id of ['gdelt-news', 'adsb-lol-aircraft', 'firms-fires', 'meteored-conditions']) {
       expect(crons).toContain(proxySourceById(id)?.cron);
     }
+  });
+});
+
+describe('shapeAdsbLol', () => {
+  const fixture = JSON.stringify({
+    now: 1794657546010,
+    total: 5,
+    ac: [
+      { hex: 'aaa001', flight: 'KLM123  ', t: 'B738', alt_baro: 36000, gs: 440.2, track: 91.4, lat: 52.31234, lon: 4.76389, seen_pos: 1.2, type: 'adsb_icao' },
+      { hex: 'aaa002', alt_baro: 'ground', gs: 3, lat: 52.3, lon: 4.7, seen_pos: 0.2 },
+      { hex: 'aaa003', flight: 'NOPOS', alt_baro: 5000 },
+      { hex: 'aaa004', lat: 'x', lon: 1 },
+      { flight: 'NOHEX', lat: 1, lon: 1 },
+    ],
+  });
+
+  it('keeps only the fields the map draws and trims the callsign', () => {
+    const shaped = shapeAdsbLol(fixture);
+    const { aircraft, totalInReply } = shaped.data as { aircraft: Array<Record<string, unknown>>; totalInReply: number };
+    expect(totalInReply).toBe(5);
+    expect(aircraft).toHaveLength(2);
+    const klm = aircraft.find((a) => a['hex'] === 'aaa001');
+    expect(klm).toEqual({
+      hex: 'aaa001',
+      callsign: 'KLM123',
+      type: 'B738',
+      lat: 52.312,
+      lon: 4.764,
+      altFt: 36000,
+      onGround: false,
+      speedKt: 440.2,
+      trackDeg: 91,
+      posAgeS: 1,
+    });
+    expect(shaped.count).toBe(2);
+  });
+
+  it('drops aircraft without a usable position instead of placing them', () => {
+    const { aircraft } = shapeAdsbLol(fixture).data as { aircraft: Array<{ hex: string }> };
+    expect(aircraft.map((a) => a.hex).sort()).toEqual(['aaa001', 'aaa002']);
+  });
+
+  it('flags ground traffic and leaves its altitude null', () => {
+    const { aircraft } = shapeAdsbLol(fixture).data as { aircraft: Array<{ hex: string; onGround: boolean; altFt: number | null }> };
+    const ground = aircraft.find((a) => a.hex === 'aaa002');
+    expect(ground?.onGround).toBe(true);
+    expect(ground?.altFt).toBeNull();
+  });
+
+  it('reports the API’s own snapshot clock, and null rather than our clock when absent', () => {
+    expect(shapeAdsbLol(fixture).sourceTimestamp).toBe(1794657546010);
+    expect(shapeAdsbLol(JSON.stringify({ ac: [] })).sourceTimestamp).toBeNull();
+    expect(shapeAdsbLol(JSON.stringify({ now: 'soon', ac: [] })).sourceTimestamp).toBeNull();
+  });
+
+  it('survives a reply with no aircraft list', () => {
+    const shaped = shapeAdsbLol('{}');
+    expect(shaped.count).toBe(0);
+  });
+
+  it('bounds what it stores, dropping the stalest positions first', () => {
+    const ac = Array.from({ length: 2500 }, (_, i) => ({ hex: `h${i}`, lat: 50, lon: 8, seen_pos: i }));
+    const { aircraft } = shapeAdsbLol(JSON.stringify({ now: 1, ac })).data as { aircraft: Array<{ hex: string }> };
+    expect(aircraft).toHaveLength(2000);
+    expect(aircraft[0]?.hex).toBe('h0');
+    expect(aircraft.some((a) => a.hex === 'h2499')).toBe(false);
   });
 });

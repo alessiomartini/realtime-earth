@@ -22,5 +22,6 @@ import './swpc-wind.js'; //           earth     — Lane A, poll, 24h of 1-minut
 import './carbon-intensity.js'; //  infrastructure — Lane A, poll, today's half-hours + generation mix
 import './wikipedia-changes.js'; //  noosphere — Lane A, SSE, no history available
 import './gdelt-news.js'; //         noosphere — Lane B, Worker proxy + KV, 1h history
+import './adsb-lol-aircraft.js'; //  earth     — Lane B, Worker proxy + KV, 250 nm circle, no history
 
 export { allModules, moduleById, moduleCount } from './registry.js';
