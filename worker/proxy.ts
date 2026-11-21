@@ -46,6 +46,11 @@ export interface ProxyEnv {
   METEORED_AFFILIATE_ID?: string;
   /** Which Meteored locality to read. Optional; a default is used when unset. */
   METEORED_LOCALITY?: string;
+  /**
+   * adsb.lol API key. Server-side only. Optional: while unset the adsb.lol
+   * source makes no network call at all and reports itself unavailable.
+   */
+  ADSB_LOL_API_KEY?: string;
 }
 
 /** What the scheduled handler stores, and what the route serves back. */
@@ -90,7 +95,7 @@ interface ProxySource {
    * secret is absent, so a missing key is reported as a missing key rather than
    * being fetched without one and reported as an upstream rejection.
    */
-  buildUrl(env: ProxyEnv): { url: string } | { missing: string };
+  buildUrl(env: ProxyEnv): { url: string; headers?: Record<string, string> } | { missing: string };
   /** Reduce the upstream body to the small shape the client consumes. */
   shape(body: string): Shaped;
 }
@@ -372,6 +377,13 @@ export function shapeMeteored(body: string): Shaped {
 export const ADSB_CENTRE = { lat: 50, lon: 8, radiusNm: 250 } as const;
 const ADSB_URL = `https://api.adsb.lol/v2/point/${ADSB_CENTRE.lat}/${ADSB_CENTRE.lon}/${ADSB_CENTRE.radiusNm}`;
 /** Hard bound on what is stored and served, whatever the upstream returns. */
+/**
+ * Name of the request header that carries the adsb.lol API key.
+ * TODO: unverified. `x-api-key` is an assumption (ROADMAP note from 2026-11-14);
+ * check it against the adsb.lol API docs when the key is issued, before the
+ * secret is set. Only this constant needs to change.
+ */
+export const ADSB_LOL_KEY_HEADER = 'x-api-key';
 const ADSB_MAX_AIRCRAFT = 2000;
 
 export interface AdsbAircraft {
@@ -462,7 +474,18 @@ const SOURCES: readonly ProxySource[] = [
     // the same egress address.
     cron: '4,19,34,49 * * * *',
     refreshEverySeconds: 900,
-    buildUrl: () => ({ url: ADSB_URL }),
+    // adsb.lol asks automated clients to use an API key, so this source is
+    // disabled (no network call) until the ADSB_LOL_API_KEY secret is set.
+    buildUrl: (env) => {
+      const key = env.ADSB_LOL_API_KEY;
+      if (key === undefined || key === '') {
+        return {
+          missing:
+            'ADSB_LOL_API_KEY is not configured on this deployment. adsb.lol asks automated clients to use an API key, so this feed is disabled (no request is sent to adsb.lol) until one is set.',
+        };
+      }
+      return { url: ADSB_URL, headers: { [ADSB_LOL_KEY_HEADER]: key } };
+    },
     shape: shapeAdsbLol,
   },
   {
@@ -558,7 +581,7 @@ async function fetchUpstream(
 
   try {
     let response = await fetch(built.url, {
-      headers: { 'user-agent': USER_AGENT, accept: '*/*' },
+      headers: { 'user-agent': USER_AGENT, accept: '*/*', ...built.headers },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       cf: { cacheTtl: Math.min(source.refreshEverySeconds, 300), cacheEverything: true },
     });
@@ -574,7 +597,7 @@ async function fetchUpstream(
     if (response.status === 429 && patientOn429) {
       await new Promise((resolve) => setTimeout(resolve, RETRY_AFTER_429_MS));
       response = await fetch(built.url, {
-        headers: { 'user-agent': USER_AGENT, accept: '*/*' },
+        headers: { 'user-agent': USER_AGENT, accept: '*/*', ...built.headers },
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         // No `cf` cache on the retry: the point is to get past the 429, and a
         // cached copy of the 429 itself is what we are trying not to re-read.

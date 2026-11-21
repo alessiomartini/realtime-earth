@@ -161,6 +161,16 @@ describe('the source registry', () => {
     }
   });
 
+  it('gates adsb.lol on ADSB_LOL_API_KEY and sends the key only as a header', () => {
+    const source = proxySourceById('adsb-lol-aircraft');
+    const none = source?.buildUrl({});
+    expect(none && 'missing' in none && none.missing).toContain('ADSB_LOL_API_KEY');
+    const built = source?.buildUrl({ ADSB_LOL_API_KEY: 'SECRET-KEY-VALUE' });
+    expect(built && 'url' in built && built.url).not.toContain('SECRET-KEY-VALUE');
+    expect(built && 'url' in built && Object.values(built.headers ?? {})).toContain('SECRET-KEY-VALUE');
+    expect(source?.publicUrl).not.toContain('SECRET-KEY-VALUE');
+  });
+
   it('names the missing secret, so the refusal is actionable', () => {
     // "Unavailable" tells a reader nothing they can do. The env var name does.
     const firms = proxySourceById('firms-fires')?.buildUrl({});
