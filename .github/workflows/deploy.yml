@@ -219,6 +219,9 @@ jobs:
 
           check_gated /api/firms-fires FIRMS_MAP_KEY FIRMS
           check_gated /api/meteored-conditions METEORED_AFFILIATE_ID Meteored
+          # adsb.lol is disabled (503 naming ADSB_LOL_API_KEY, no request sent
+          # upstream) until Alessio sets that secret; 200 once it is set.
+          check_gated /api/adsb-lol-aircraft ADSB_LOL_API_KEY adsb.lol
 
           # 5. Lane C. A Durable Object that fails to instantiate — a missing
           #    binding, an unregistered class, a migration that did not apply —

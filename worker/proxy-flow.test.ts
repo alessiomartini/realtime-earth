@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { handleProxy, proxySourceById, refreshForCron, refreshSource } from './proxy.js';
+import { ADSB_LOL_KEY_HEADER, handleProxy, proxySourceById, refreshForCron, refreshSource } from './proxy.js';
 
 /**
  * Lane B's storage flow: cache hit/miss, failure handling and the scheduled
@@ -28,7 +28,14 @@ const GDELT_BODY = JSON.stringify({
   articles: [{ url: 'https://example.org/a', title: 'A', seendate: '20261031T101500Z', domain: 'example.org' }],
 });
 
+const ADSB_BODY = JSON.stringify({
+  now: 1794657546010,
+  total: 1,
+  ac: [{ hex: '398566', flight: 'HOP51BV ', t: 'E190', alt_baro: 36625, gs: 430.9, track: 159.63, lat: 50.1, lon: 8.2, seen_pos: 0.4 }],
+});
+
 const gdelt = proxySourceById('gdelt-news')!;
+const adsb = proxySourceById('adsb-lol-aircraft')!;
 
 function mockFetch(impl: () => Response | Promise<Response>) {
   const spy = vi.fn(async () => impl());
@@ -149,15 +156,64 @@ describe('refreshSource', () => {
   });
 });
 
+describe('adsb.lol route without a key', () => {
+  it('answers 503 naming the secret and makes no network call', async () => {
+    const spy = mockFetch(() => new Response(ADSB_BODY));
+    const res = await handleProxy(adsb, { FEED_CACHE: fakeKv() });
+    const body = await asJson(res);
+    expect(res.status).toBe(503);
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe('unavailable');
+    expect(body.message).toContain('ADSB_LOL_API_KEY');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('serves data when the key is set', async () => {
+    mockFetch(() => new Response(ADSB_BODY));
+    const res = await handleProxy(adsb, { FEED_CACHE: fakeKv(), ADSB_LOL_API_KEY: 'test-key' });
+    expect(res.status).toBe(200);
+    expect((await asJson(res)).count).toBe(1);
+  });
+});
+
 describe('refreshForCron', () => {
   it('refreshes only the sources whose cron fired', async () => {
     const kv = fakeKv();
-    const spy = mockFetch(() => new Response(GDELT_BODY));
+    // GDELT and adsb.lol share one cron slot, so both are due; FIRMS and
+    // Meteored (other slots) must stay untouched.
+    const spy = vi.fn(async (url: string) =>
+      new Response(String(url).includes('adsb.lol') ? ADSB_BODY : GDELT_BODY),
+    );
+    vi.stubGlobal('fetch', spy);
+    const log = await refreshForCron(gdelt.cron, { FEED_CACHE: kv, ADSB_LOL_API_KEY: 'test-key' });
+    expect(log).toHaveLength(2);
+    expect(log.join(' ')).toContain('gdelt-news');
+    expect(log.join(' ')).toContain('adsb-lol-aircraft: 1 records');
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect([...kv.store.keys()].sort()).toEqual(['feed:adsb-lol-aircraft', 'feed:gdelt-news']);
+  });
+
+  it('skips adsb.lol entirely without ADSB_LOL_API_KEY: no request to it, no data', async () => {
+    const kv = fakeKv();
+    const spy = vi.fn(async (url: string) => {
+      if (String(url).includes('adsb.lol')) throw new Error('adsb.lol must not be called');
+      return new Response(GDELT_BODY);
+    });
+    vi.stubGlobal('fetch', spy);
     const log = await refreshForCron(gdelt.cron, { FEED_CACHE: kv });
-    expect(log).toHaveLength(1);
-    expect(log[0]).toContain('gdelt-news');
+    expect(log.join(' ')).toContain('adsb-lol-aircraft: ADSB_LOL_API_KEY is not configured');
     expect(spy).toHaveBeenCalledTimes(1);
-    expect([...kv.store.keys()]).toEqual(['feed:gdelt-news']);
+    expect(kv.store.has('feed:adsb-lol-aircraft')).toBe(false);
+  });
+
+  it('sends the adsb.lol key in the documented header when configured', async () => {
+    const kv = fakeKv();
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => new Response(ADSB_BODY));
+    vi.stubGlobal('fetch', spy);
+    const outcome = await refreshSource(adsb, { FEED_CACHE: kv, ADSB_LOL_API_KEY: 'test-key' });
+    expect(outcome.entry?.count).toBe(1);
+    const headers = spy.mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(headers[ADSB_LOL_KEY_HEADER]).toBe('test-key');
   });
 
   it('does nothing for an unknown cron', async () => {

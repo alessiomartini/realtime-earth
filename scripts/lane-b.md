@@ -85,6 +85,7 @@ production, because that is the only vantage point that decides anything.
 | id | source | cron | state |
 | --- | --- | --- | --- |
 | `gdelt-news` | The GDELT Project, DOC 2.0 | `4,19,34,49 * * * *` | live |
+| `adsb-lol-aircraft` | adsb.lol, `/v2/point/50/8/250` (ODbL 1.0) | `4,19,34,49 * * * *` (shared with GDELT) | live after deploy |
 | `firms-fires` | NASA FIRMS | `27 * * * *` | refuses — no `FIRMS_MAP_KEY` |
 
 FIRMS answers 503 naming the missing key, and the scheduled handler does not

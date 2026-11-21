@@ -46,6 +46,11 @@ export interface ProxyEnv {
   METEORED_AFFILIATE_ID?: string;
   /** Which Meteored locality to read. Optional; a default is used when unset. */
   METEORED_LOCALITY?: string;
+  /**
+   * adsb.lol API key. Server-side only. Optional: while unset the adsb.lol
+   * source makes no network call at all and reports itself unavailable.
+   */
+  ADSB_LOL_API_KEY?: string;
 }
 
 /** What the scheduled handler stores, and what the route serves back. */
@@ -90,7 +95,7 @@ interface ProxySource {
    * secret is absent, so a missing key is reported as a missing key rather than
    * being fetched without one and reported as an upstream rejection.
    */
-  buildUrl(env: ProxyEnv): { url: string } | { missing: string };
+  buildUrl(env: ProxyEnv): { url: string; headers?: Record<string, string> } | { missing: string };
   /** Reduce the upstream body to the small shape the client consumes. */
   shape(body: string): Shaped;
 }
@@ -348,6 +353,104 @@ export function shapeMeteored(body: string): Shaped {
   };
 }
 
+/**
+ * adsb.lol aircraft positions, ODbL 1.0.
+ *
+ * Lane B because `api.adsb.lol` sends no `access-control-allow-origin`
+ * (verified, see README), and because its documented anonymous limit is 500
+ * requests a day per IP — a quota a public site polling directly would exhaust
+ * with a handful of visitors. The Worker asks once per refresh and everyone
+ * reads that copy; at 15 minutes that is 96 requests a day.
+ *
+ * ONE BOUNDED QUERY, NOT THE WORLD. `/v2/point/{lat}/{lon}/{radius_nm}` with
+ * the largest radius the API accepts (250 nm) around central Europe: about a
+ * thousand aircraft, which is the right order for a map and for a KV value. The
+ * raw reply is ~580 KB with dozens of fields per aircraft; only the fields the
+ * map draws are kept (a few tens of KB). Coverage is the circle and, inside
+ * it, wherever volunteer receivers hear aircraft: it is not "all aircraft".
+ *
+ * `now` in the reply is the API's own clock for the snapshot, in ms, and is
+ * what is reported as the source timestamp. Each aircraft also carries
+ * `seen_pos`, the seconds since ITS position was last updated, kept as
+ * `posAgeS` so the client can age every dot honestly.
+ */
+export const ADSB_CENTRE = { lat: 50, lon: 8, radiusNm: 250 } as const;
+const ADSB_URL = `https://api.adsb.lol/v2/point/${ADSB_CENTRE.lat}/${ADSB_CENTRE.lon}/${ADSB_CENTRE.radiusNm}`;
+/** Hard bound on what is stored and served, whatever the upstream returns. */
+/**
+ * Name of the request header that carries the adsb.lol API key.
+ * TODO: unverified. `x-api-key` is an assumption (ROADMAP note from 2026-11-14);
+ * check it against the adsb.lol API docs when the key is issued, before the
+ * secret is set. Only this constant needs to change.
+ */
+export const ADSB_LOL_KEY_HEADER = 'x-api-key';
+const ADSB_MAX_AIRCRAFT = 2000;
+
+export interface AdsbAircraft {
+  hex: string;
+  callsign: string | null;
+  type: string | null;
+  lat: number;
+  lon: number;
+  /** Barometric altitude in feet; null when not reported or on the ground. */
+  altFt: number | null;
+  onGround: boolean;
+  /** Ground speed in knots. */
+  speedKt: number | null;
+  /** True track over the ground, degrees. */
+  trackDeg: number | null;
+  /** Seconds since this aircraft's position was last updated, per the source. */
+  posAgeS: number | null;
+}
+
+const numOrNull = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+const round = (value: number, places: number): number => {
+  const f = 10 ** places;
+  return Math.round(value * f) / f;
+};
+
+export function shapeAdsbLol(body: string): Shaped {
+  const parsed = JSON.parse(body) as { ac?: unknown; now?: unknown };
+  const raw = Array.isArray(parsed.ac) ? (parsed.ac as Array<Record<string, unknown>>) : [];
+
+  const aircraft: AdsbAircraft[] = [];
+  for (const a of raw) {
+    // No position, no dot: an aircraft heard without one is not placed at a
+    // guessed location.
+    const lat = numOrNull(a['lat']);
+    const lon = numOrNull(a['lon']);
+    if (lat === null || lon === null || typeof a['hex'] !== 'string') continue;
+    const alt = a['alt_baro'];
+    const callsign = typeof a['flight'] === 'string' ? a['flight'].trim() : '';
+    const track = numOrNull(a['track']);
+    const posAge = numOrNull(a['seen_pos']);
+    aircraft.push({
+      hex: a['hex'],
+      callsign: callsign === '' ? null : callsign,
+      type: typeof a['t'] === 'string' ? a['t'] : null,
+      lat: round(lat, 3),
+      lon: round(lon, 3),
+      altFt: typeof alt === 'number' && Number.isFinite(alt) ? alt : null,
+      onGround: alt === 'ground',
+      speedKt: numOrNull(a['gs']),
+      trackDeg: track === null ? null : round(track, 0),
+      posAgeS: posAge === null ? null : round(posAge, 0),
+    });
+  }
+
+  // Freshest positions first, so the bound drops the stalest, not arbitrary ones.
+  aircraft.sort((x, y) => (x.posAgeS ?? Infinity) - (y.posAgeS ?? Infinity));
+  const kept = aircraft.slice(0, ADSB_MAX_AIRCRAFT);
+
+  const now = numOrNull(parsed.now);
+  return {
+    data: { aircraft: kept, totalInReply: raw.length, centre: ADSB_CENTRE },
+    // The API's own snapshot clock; null (never our clock) when absent.
+    sourceTimestamp: now,
+    count: kept.length,
+  };
+}
+
 const SOURCES: readonly ProxySource[] = [
   {
     id: 'gdelt-news',
@@ -360,6 +463,30 @@ const SOURCES: readonly ProxySource[] = [
     refreshEverySeconds: 900,
     buildUrl: () => ({ url: GDELT_URL }),
     shape: shapeGdelt,
+  },
+  {
+    id: 'adsb-lol-aircraft',
+    attribution: 'adsb.lol, ODbL 1.0',
+    publicUrl: ADSB_URL,
+    // Shares GDELT's quarter-hour slot rather than adding a trigger: 96
+    // requests a day against the documented 500/day anonymous limit per IP,
+    // which leaves room for the cold-cache fetch and for other tenants on
+    // the same egress address.
+    cron: '4,19,34,49 * * * *',
+    refreshEverySeconds: 900,
+    // adsb.lol asks automated clients to use an API key, so this source is
+    // disabled (no network call) until the ADSB_LOL_API_KEY secret is set.
+    buildUrl: (env) => {
+      const key = env.ADSB_LOL_API_KEY;
+      if (key === undefined || key === '') {
+        return {
+          missing:
+            'ADSB_LOL_API_KEY is not configured on this deployment. adsb.lol asks automated clients to use an API key, so this feed is disabled (no request is sent to adsb.lol) until one is set.',
+        };
+      }
+      return { url: ADSB_URL, headers: { [ADSB_LOL_KEY_HEADER]: key } };
+    },
+    shape: shapeAdsbLol,
   },
   {
     id: 'firms-fires',
@@ -454,7 +581,7 @@ async function fetchUpstream(
 
   try {
     let response = await fetch(built.url, {
-      headers: { 'user-agent': USER_AGENT, accept: '*/*' },
+      headers: { 'user-agent': USER_AGENT, accept: '*/*', ...built.headers },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       cf: { cacheTtl: Math.min(source.refreshEverySeconds, 300), cacheEverything: true },
     });
@@ -470,7 +597,7 @@ async function fetchUpstream(
     if (response.status === 429 && patientOn429) {
       await new Promise((resolve) => setTimeout(resolve, RETRY_AFTER_429_MS));
       response = await fetch(built.url, {
-        headers: { 'user-agent': USER_AGENT, accept: '*/*' },
+        headers: { 'user-agent': USER_AGENT, accept: '*/*', ...built.headers },
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         // No `cf` cache on the retry: the point is to get past the 429, and a
         // cached copy of the 429 itself is what we are trying not to re-read.
